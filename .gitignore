@@ -5,3 +5,6 @@ build/*
 *.xml
 TOSSIM.py
 _TOSSIMmodule.so
+
+# Editor Configuration
+.vscode
