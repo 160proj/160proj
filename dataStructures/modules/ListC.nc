@@ -91,4 +91,31 @@ implementation{
 	command t List.get(uint16_t position){
 		return container[position];
 	}
+
+	/*command bool List.contains(t input) {
+		uint16_t i;
+
+		for (i = 0; i < size; i++) {
+			if (container[i] == input) {
+				return TRUE;
+			}
+		}
+
+		return FALSE;
+	}*/
+
+	command void List.remove(uint16_t position) {
+		uint16_t i;
+		for (i = position; i < size-1; i++) {
+			container[i] = container[i+1];
+		}
+
+		size--;
+	}
+
+	command void List.clear() {
+		while (size > 0) {
+			call List.popback();
+		}
+	}
 }
