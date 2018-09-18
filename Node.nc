@@ -182,19 +182,19 @@ implementation{
         dbg(NEIGHBOR_CHANNEL, "---------------------------\n");
     }
 
-    event void CommandHandler.printRouteTable(){ printf("printRouteTable\n"); }
+    event void CommandHandler.printRouteTable(){ dbg(GENERAL_CHANNEL, "printRouteTable\n"); }
 
-    event void CommandHandler.printLinkState(){ printf("printLinkState\n"); }
+    event void CommandHandler.printLinkState(){ dbg(GENERAL_CHANNEL, "printLinkState\n"); }
 
-    event void CommandHandler.printDistanceVector(){ printf("printDistanceVector\n"); }
+    event void CommandHandler.printDistanceVector(){ dbg(GENERAL_CHANNEL, "printDistanceVector\n"); }
 
-    event void CommandHandler.setTestServer(){ printf("setTestServer\n"); }
+    event void CommandHandler.setTestServer(){ dbg(GENERAL_CHANNEL, "setTestServer\n"); }
 
-    event void CommandHandler.setTestClient(){ printf("setTestClient\n"); }
+    event void CommandHandler.setTestClient(){ dbg(GENERAL_CHANNEL, "setTestClient\n"); }
 
-    event void CommandHandler.setAppServer(){ printf("setAppServer\n"); }
+    event void CommandHandler.setAppServer(){ dbg(GENERAL_CHANNEL, "setAppServer\n"); }
 
-    event void CommandHandler.setAppClient(){ printf("setAppClient\n"); }
+    event void CommandHandler.setAppClient(){ dbg(GENERAL_CHANNEL, "setAppClient\n"); }
 
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t protocol, uint16_t seq, uint8_t* payload, uint8_t length){
         Package->src = src;
