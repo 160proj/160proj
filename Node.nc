@@ -67,13 +67,14 @@ implementation{
     void pingHandler(pack* msg) {
         switch(msg->protocol) {
             case PROTOCOL_PING:
-                dbg(GENERAL_CHANNEL, "Ping recieved from %d. Sending reply...\n", msg->src);
-                dbg(GENERAL_CHANNEL, "Packet Payload: %s\n", msg->payload);
+                dbg(GENERAL_CHANNEL, "--- Ping recieved from %d\n", msg->src);
+                dbg(GENERAL_CHANNEL, "--- Packet Payload: %s\n", msg->payload);
+                dbg(GENERAL_CHANNEL, "--- Sending Reply...\n");
                 pingReply(msg);
                 break;
                     
             case PROTOCOL_PINGREPLY:
-                dbg(GENERAL_CHANNEL, "Ping reply recieved from %d.\n", msg->src);
+                dbg(GENERAL_CHANNEL, "--- Ping reply recieved from %d\n", msg->src);
                 break;
                     
             default:
@@ -163,11 +164,11 @@ implementation{
         uint16_t i;
         uint32_t* nodes = call Neighbors.getKeys();
 
-        dbg(NEIGHBOR_CHANNEL, "--- Neighbors of Node %d ---\n", TOS_NODE_ID);
+        dbg(GENERAL_CHANNEL, "--- Neighbors of Node %d ---\n", TOS_NODE_ID);
         for (i = 0; i < call Neighbors.size(); i++) {
-            dbg(NEIGHBOR_CHANNEL, "%d\n", nodes[i]);
+            dbg(GENERAL_CHANNEL, "%d\n", nodes[i]);
         }
-        dbg(NEIGHBOR_CHANNEL, "---------------------------\n");
+        dbg(GENERAL_CHANNEL, "---------------------------\n");
     }
 
     event void CommandHandler.printRouteTable(){ dbg(GENERAL_CHANNEL, "printRouteTable\n"); }
