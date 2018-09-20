@@ -175,7 +175,7 @@ implementation{
         uint8_t* payload = "Neighbor Discovery\n";
         decrement_timeout();
         makePack(&sendPackage, TOS_NODE_ID, AM_BROADCAST_ADDR, 1, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
-        call FloodingHandler.flood(&sendPackage);
+        call Sender.send(sendPackage, AM_BROADCAST_ADDR);
     }
 
     /**
