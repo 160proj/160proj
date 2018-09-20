@@ -34,9 +34,10 @@ module Node{
 }
 
 implementation{
-    const uint16_t TIMEOUT_CYCLES = 10; // # of timer runs before timeout
-    pack sendPackage;
-    uint16_t current_seq = 0;
+    // Global Variables
+    const uint16_t TIMEOUT_CYCLES = 10; // # of timer 'cycles' before neighbor times out
+    pack sendPackage;                   // Generic packet used to hold the next packet to be sent
+    uint16_t current_seq = 0;           // Sequence number of packets sent by node
 
     // Prototypes
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t Protocol, uint16_t seq, uint8_t *payload, uint8_t length);
@@ -45,14 +46,22 @@ implementation{
     void decrement_timeout();
     void pingHandler(pack* msg);
     void neighborDiscoveryHandler(pack* msg);
+    uint16_t randNum(uint16_t min, uint16_t max);
 
+    /**
+     * Called when the node is started
+     * Initializes/starts necessary services
+     */
     event void Boot.booted(){
         call AMControl.start();
+        call NeighborTimer.startPeriodic(randNum(1000,2000));
 
         dbg(GENERAL_CHANNEL, "Booted\n");
-        call NeighborTimer.startPeriodic(call Random.rand16());
     }
 
+    /**
+     * Starts radio, called during boot
+     */
     event void AMControl.startDone(error_t err){
         if (err == SUCCESS) {
             dbg(GENERAL_CHANNEL, "Radio On\n");
@@ -64,6 +73,17 @@ implementation{
 
     event void AMControl.stopDone(error_t err){}
 
+    /**
+     * Generates a random 16-bit number between 'min' and 'max'
+     */
+    uint16_t randNum(uint16_t min, uint16_t max) {
+        return ( call Random.rand16() % (max-min+1) ) + min;
+    }
+
+    /**
+     * Helper function for processing ping packets
+     * Only supports pings and ping replies
+     */
     void pingHandler(pack* msg) {
         switch(msg->protocol) {
             case PROTOCOL_PING:
@@ -82,13 +102,17 @@ implementation{
         }
     }
 
+
+    /**
+     * Helper function for processing neighbor discovery packets
+     * Only supports pings and ping replies
+     */
     void neighborDiscoveryHandler(pack* msg) {
         switch(msg->protocol) {
             case PROTOCOL_PING:
                 dbg(NEIGHBOR_CHANNEL, "Neighbor discovery from %d. Adding to list & replying...\n", msg->src);
                 call Neighbors.insert(msg->src, TIMEOUT_CYCLES);
-                msg->src = AM_BROADCAST_ADDR; // Invert src/dest for ping reply
-                msg->dest = TOS_NODE_ID;      // TODO re-implement with flooding module
+                msg->src = AM_BROADCAST_ADDR; // Ping reply sets msg src as the reply's dest
                 pingReply(msg);
                 break;
 
@@ -102,6 +126,9 @@ implementation{
         }
     }
 
+    /**
+     * Handles the validation of recieved packets, and identifies the type of packet
+     */
     event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
 
         if (len == sizeof(pack)) {
@@ -129,37 +156,61 @@ implementation{
         return msg;
     }
 
+
+    /**
+     * Sends a ping reply to the original packet's src node
+     * The attached payload remains the same
+     */
     void pingReply(pack* msg) {
         makePack(&sendPackage, TOS_NODE_ID, msg->src, MAX_TTL, PROTOCOL_PINGREPLY, current_seq++, (uint8_t*)msg->payload, PACKET_MAX_PAYLOAD_SIZE);
         call FloodingHandler.flood(&sendPackage);
     }
 
+    /**
+     * Runs at a random amount of time, different for each node
+     * Sends out a neighbor discovery packet (dest = AM_BROADCAST_ADDR, TTL = 1) to all connected nodes
+     */
+    event void NeighborTimer.fired() {
+        // Using AM_BROADCAST_ADDR for the ID of a neighbor discovery packet
+        // Having 65535 nodes in a network is less likely than a node with ID 0 being added
+        uint8_t* payload = "Neighbor Discovery\n";
+        decrement_timeout();
+        makePack(&sendPackage, TOS_NODE_ID, AM_BROADCAST_ADDR, 1, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
+        call FloodingHandler.flood(&sendPackage);
+    }
+
+    /**
+     * Removes 1 'cycle' from all the timeout values on the neighbor list
+     * Removes the node ID from the list if the timeout drops to 0
+     */
     void decrement_timeout() {
         uint16_t i;
         uint32_t* nodes = call Neighbors.getKeys();
 
+        // Subtract 1 'clock cycle' from all the timeout values
         for (i = 0; i < call Neighbors.size(); i++) {
             uint16_t timeout = call Neighbors.get(nodes[i]);
             call Neighbors.insert(nodes[i], timeout - 1);
+
+            // Node stopped replying, drop it
             if (timeout - 1 <= 0) {
                 call Neighbors.remove(nodes[i]);
             }
         }
     }
 
-    event void NeighborTimer.fired() {
-        uint8_t* payload = "Neighbor Discovery\n";
-        decrement_timeout();
-        makePack(&sendPackage, TOS_NODE_ID, AM_BROADCAST_ADDR, 1, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
-        call Sender.send(sendPackage, AM_BROADCAST_ADDR);
-    }
-
+    /**
+     * Called when simulation issues a ping command to the node
+     */
     event void CommandHandler.ping(uint16_t destination, uint8_t *payload){
         dbg(GENERAL_CHANNEL, "PING EVENT \n");
         makePack(&sendPackage, TOS_NODE_ID, destination, MAX_TTL, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
         call FloodingHandler.flood(&sendPackage);
     }
 
+    /**
+     * Called when simulation issues a command to print the list of neighbor node IDs
+     */
     event void CommandHandler.printNeighbors(){
         uint16_t i;
         uint32_t* nodes = call Neighbors.getKeys();
@@ -185,6 +236,9 @@ implementation{
 
     event void CommandHandler.setAppClient(){ dbg(GENERAL_CHANNEL, "setAppClient\n"); }
 
+    /**
+     * Assembles a packet given by the first parameter using the other parameters
+     */
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t protocol, uint16_t seq, uint8_t* payload, uint8_t length){
         Package->src = src;
         Package->dest = dest;
