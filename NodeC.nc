@@ -42,4 +42,7 @@ implementation {
 
     components new HashmapC(uint16_t, 32) as Neighbors;
     Node.Neighbors -> Neighbors;
+
+    components FloodingHandlerC;
+    Node.FloodingHandler -> FloodingHandlerC;
 }

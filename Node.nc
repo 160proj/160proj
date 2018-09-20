@@ -29,6 +29,8 @@ module Node{
     
     uses interface Hashmap<uint16_t> as PreviousPackets;
     uses interface Hashmap<uint16_t> as Neighbors;
+
+    uses interface FloodingHandler;
 }
 
 implementation{
@@ -61,11 +63,6 @@ implementation{
     }
 
     event void AMControl.stopDone(error_t err){}
-
-    bool isDuplicate(uint16_t node_id, uint16_t sequence_num) {
-        return call PreviousPackets.contains(node_id) &&
-               call PreviousPackets.get(node_id) == sequence_num;
-    }
 
     void pingHandler(pack* msg) {
         switch(msg->protocol) {
@@ -109,18 +106,10 @@ implementation{
         if (len == sizeof(pack)) {
             pack* myMsg=(pack*) payload;
 
-            if (myMsg->TTL <= 0) {
-                dbg(FLOODING_CHANNEL, "TTL of packet reached. Dropping...\n");
+            if (!call FloodingHandler.isValid(myMsg)) {
                 return msg;
             }
-
-            if (isDuplicate(myMsg->src, myMsg->seq)) {
-                dbg(FLOODING_CHANNEL, "Duplicate packet. Dropping...\n");
-                return msg;
-            } else {
-                call PreviousPackets.insert(myMsg->src, myMsg->seq);
-            }
-
+            
             // Regular Ping
             if (myMsg->dest == TOS_NODE_ID) {
                 pingHandler(myMsg);
@@ -128,11 +117,10 @@ implementation{
             // Neighbor Discovery
             } else if (myMsg->dest == AM_BROADCAST_ADDR) {
                 neighborDiscoveryHandler(myMsg);
-                
+
+            // Not Destination
             } else {
-                dbg(FLOODING_CHANNEL, "Packet recieved from %d. Destination: %d. Flooding...\n", myMsg->src, myMsg->dest);
-                myMsg->TTL -= 1;
-                call Sender.send(*myMsg, AM_BROADCAST_ADDR);
+                call FloodingHandler.flood(myMsg);
             }
             return msg;
         }
@@ -142,7 +130,7 @@ implementation{
 
     void pingReply(pack* msg) {
         makePack(&sendPackage, TOS_NODE_ID, msg->src, MAX_TTL, PROTOCOL_PINGREPLY, current_seq++, (uint8_t*)msg->payload, PACKET_MAX_PAYLOAD_SIZE);
-        call Sender.send(sendPackage, AM_BROADCAST_ADDR);
+        call FloodingHandler.flood(&sendPackage);
     }
 
     void decrement_timeout() {
@@ -168,7 +156,7 @@ implementation{
     event void CommandHandler.ping(uint16_t destination, uint8_t *payload){
         dbg(GENERAL_CHANNEL, "PING EVENT \n");
         makePack(&sendPackage, TOS_NODE_ID, destination, MAX_TTL, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
-        call Sender.send(sendPackage, AM_BROADCAST_ADDR);
+        call FloodingHandler.flood(&sendPackage);
     }
 
     event void CommandHandler.printNeighbors(){
