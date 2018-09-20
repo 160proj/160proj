@@ -27,7 +27,6 @@ module Node{
     uses interface Timer<TMilli> as NeighborTimer;
     uses interface Random as Random;
     
-    uses interface Hashmap<uint16_t> as PreviousPackets;
     uses interface Hashmap<uint16_t> as Neighbors;
 
     uses interface FloodingHandler;
