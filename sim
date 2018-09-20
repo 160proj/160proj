@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Author: Jadon Hansell
+# Email: jhansell@ucmerced.edu
+# Runs the TOSSIM python file provided as an argument using Docker
+
 if [ ! $# -eq 1 ]; then
     echo "Missing simulation file name"
     exit 1
