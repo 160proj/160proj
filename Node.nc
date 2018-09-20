@@ -101,7 +101,6 @@ implementation{
         }
     }
 
-
     /**
      * Helper function for processing neighbor discovery packets
      * Only supports pings and ping replies
@@ -154,7 +153,6 @@ implementation{
         dbg(GENERAL_CHANNEL, "Unknown Packet Type %d\n", len);
         return msg;
     }
-
 
     /**
      * Sends a ping reply to the original packet's src node
