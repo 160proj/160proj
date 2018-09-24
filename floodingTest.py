@@ -19,7 +19,7 @@ def main():
     # Add the main channels. These channels are declared in includes/channels.h
     s.addChannel(s.COMMAND_CHANNEL);
     s.addChannel(s.GENERAL_CHANNEL);
-    # s.addChannel(s.FLOODING_CHANNEL);
+    s.addChannel(s.FLOODING_CHANNEL);
 
     # After sending a ping, simulate a little to prevent collision.
     s.runTime(1);
@@ -29,9 +29,6 @@ def main():
 
     s.ping(1, 10, "Hi!");
     s.runTime(5);
-
-    # s.neighborDMP(5);
-    # s.runTime(1);
 
 if __name__ == '__main__':
     main()
