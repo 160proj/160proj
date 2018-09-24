@@ -73,15 +73,8 @@ implementation{
     event void AMControl.stopDone(error_t err){}
 
     /**
-     * Generates a random 16-bit number between 'min' and 'max'
-     */
-    uint16_t randNum(uint16_t min, uint16_t max) {
-        return ( call Random.rand16() % (max-min+1) ) + min;
-    }
-
-    /**
      * Helper function for processing ping packets
-     * Only supports pings and ping replies
+     * Only protocols needed are ping and ping reply
      */
     void pingHandler(pack* msg) {
         switch(msg->protocol) {
@@ -103,7 +96,7 @@ implementation{
 
     /**
      * Helper function for processing neighbor discovery packets
-     * Only supports pings and ping replies
+     * Neighbor discovery implemented with only ping and ping replies
      */
     void neighborDiscoveryHandler(pack* msg) {
         switch(msg->protocol) {
@@ -125,6 +118,7 @@ implementation{
     }
 
     /**
+     * Called when a packet is recieved
      * Handles the validation of recieved packets, and identifies the type of packet
      */
     event message_t* Receive.receive(message_t* msg, void* payload, uint8_t len){
@@ -168,32 +162,12 @@ implementation{
      * Sends out a neighbor discovery packet (dest = AM_BROADCAST_ADDR, TTL = 1) to all connected nodes
      */
     event void NeighborTimer.fired() {
-        // Using AM_BROADCAST_ADDR for the ID of a neighbor discovery packet
-        // Having 65535 nodes in a network is less likely than a node with ID 0 being added
+        // Using dest=AM_BROADCAST_ADDR for the ID of a neighbor discovery packet
+        // Having 65535 nodes in a network is less likely than a node with ID 0 being part of the network
         uint8_t* payload = "Neighbor Discovery\n";
         decrement_timeout();
         makePack(&sendPackage, TOS_NODE_ID, AM_BROADCAST_ADDR, 1, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
         call Sender.send(sendPackage, AM_BROADCAST_ADDR);
-    }
-
-    /**
-     * Removes 1 'cycle' from all the timeout values on the neighbor list
-     * Removes the node ID from the list if the timeout drops to 0
-     */
-    void decrement_timeout() {
-        uint16_t i;
-        uint32_t* nodes = call Neighbors.getKeys();
-
-        // Subtract 1 'clock cycle' from all the timeout values
-        for (i = 0; i < call Neighbors.size(); i++) {
-            uint16_t timeout = call Neighbors.get(nodes[i]);
-            call Neighbors.insert(nodes[i], timeout - 1);
-
-            // Node stopped replying, drop it
-            if (timeout - 1 <= 0) {
-                call Neighbors.remove(nodes[i]);
-            }
-        }
     }
 
     /**
@@ -243,5 +217,32 @@ implementation{
         Package->seq = seq;
         Package->protocol = protocol;
         memcpy(Package->payload, payload, length);
+    }
+
+    /**
+     * Removes 1 'cycle' from all the timeout values on the neighbor list
+     * Removes the node ID from the list if the timeout drops to 0
+     */
+    void decrement_timeout() {
+        uint16_t i;
+        uint32_t* nodes = call Neighbors.getKeys();
+
+        // Subtract 1 'clock cycle' from all the timeout values
+        for (i = 0; i < call Neighbors.size(); i++) {
+            uint16_t timeout = call Neighbors.get(nodes[i]);
+            call Neighbors.insert(nodes[i], timeout - 1);
+
+            // Node stopped replying, drop it
+            if (timeout - 1 <= 0) {
+                call Neighbors.remove(nodes[i]);
+            }
+        }
+    }
+
+    /**
+     * Generates a random 16-bit number between 'min' and 'max'
+     */
+    uint16_t randNum(uint16_t min, uint16_t max) {
+        return ( call Random.rand16() % (max-min+1) ) + min;
     }
 }
