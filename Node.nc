@@ -34,18 +34,21 @@ module Node{
 
 implementation{
     // Global Variables
-    const uint16_t TIMEOUT_CYCLES = 10; // # of timer 'cycles' before neighbor times out
+    const uint16_t TIMEOUT_CYCLES = 10; // # of timer 'cycles' before neighbor is removed from neighbor list
     pack sendPackage;                   // Generic packet used to hold the next packet to be sent
     uint16_t current_seq = 0;           // Sequence number of packets sent by node
 
     // Prototypes
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t Protocol, uint16_t seq, uint8_t *payload, uint8_t length);
+
+    /* Project 1 */
     void pingReply(pack* msg);
     bool isDuplicate(uint16_t node_id, uint16_t sequence_num);
     void decrement_timeout();
     void pingHandler(pack* msg);
     void neighborDiscoveryHandler(pack* msg);
     uint16_t randNum(uint16_t min, uint16_t max);
+    /* ********* */
 
     /**
      * Called when the node is started
@@ -76,6 +79,7 @@ implementation{
      * Helper function for processing ping packets
      * Only protocols needed are ping and ping reply
      */
+    // TODO: Move to protocol handler module
     void pingHandler(pack* msg) {
         switch(msg->protocol) {
             case PROTOCOL_PING:
@@ -98,6 +102,7 @@ implementation{
      * Helper function for processing neighbor discovery packets
      * Neighbor discovery implemented with only ping and ping replies
      */
+    // TODO: Move to protocol handler module
     void neighborDiscoveryHandler(pack* msg) {
         switch(msg->protocol) {
             case PROTOCOL_PING:
@@ -152,6 +157,7 @@ implementation{
      * Sends a ping reply to the original packet's src node
      * The attached payload remains the same
      */
+    // TODO: Move to protocol handler module with ping_handler()
     void pingReply(pack* msg) {
         makePack(&sendPackage, TOS_NODE_ID, msg->src, MAX_TTL, PROTOCOL_PINGREPLY, current_seq++, (uint8_t*)msg->payload, PACKET_MAX_PAYLOAD_SIZE);
         call FloodingHandler.flood(&sendPackage);
@@ -161,6 +167,7 @@ implementation{
      * Runs at a random amount of time, different for each node
      * Sends out a neighbor discovery packet (dest = AM_BROADCAST_ADDR, TTL = 1) to all connected nodes
      */
+    // TODO: Move to neighbor discovery handler module
     event void NeighborTimer.fired() {
         // Using dest=AM_BROADCAST_ADDR for the ID of a neighbor discovery packet
         // Having 65535 nodes in a network is less likely than a node with ID 0 being part of the network
@@ -223,6 +230,7 @@ implementation{
      * Removes 1 'cycle' from all the timeout values on the neighbor list
      * Removes the node ID from the list if the timeout drops to 0
      */
+    // TODO: Move to neighbor discovery module
     void decrement_timeout() {
         uint16_t i;
         uint32_t* nodes = call Neighbors.getKeys();
