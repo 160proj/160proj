@@ -48,7 +48,7 @@ implementation {
 
     command void FloodingHandler.flood(pack* msg) {
         if (call FloodingHandler.isValid(msg)) {
-            call PreviousPackets.pushback(*msg);
+            call PreviousPackets.pushbackdrop(*msg);
             sendFlood(msg);
         }
     }

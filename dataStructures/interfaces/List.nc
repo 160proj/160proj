@@ -16,6 +16,8 @@ interface List<t>{
     */
     command void pushback(t input);
 	command void pushfront(t input);
+	command void pushbackdrop(t input);
+	command void pushfrontdrop(t input);
 	command t popback();
 	command t popfront();
 	command t front();

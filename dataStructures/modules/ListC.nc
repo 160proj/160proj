@@ -41,6 +41,57 @@ implementation{
 		}
 	}
 
+	/**
+	 * Same as pushback() but drops the element held the longest if the container is full
+	 */
+	command void List.pushbackdrop(t input){
+		// Check to see if we have room for the input.
+		if(size < MAX_SIZE){
+			// Put it in.
+			container[size] = input;
+			size++;
+
+		// No room, drop the first number
+		} else if (size == MAX_SIZE) {
+			int32_t i;
+			// Shift everything to the left
+			for (i = 1; i < size; i++) {
+				container[i-1] = container[i];
+			}
+
+			container[size-1] = input;
+		}
+	}
+
+	/**
+	 * Same as pushfront() but drops the element held the longest if the container is full
+	 */
+	command void List.pushfrontdrop(t input){
+		// Check to see if we have room for the input.
+		if(size < MAX_SIZE){
+			int32_t i;
+			// Shift everything to the right.
+			for(i = size-1; i>=0; i--){
+				container[i+1] = container[i];
+			}
+
+			container[0] = input;
+			size++;
+
+		// No room, drop the last number
+		} else if (size == MAX_SIZE) {
+			int32_t i;
+
+			// Shift everything to the right, dropping the last number
+
+			for (i = size-2; i>0; i--) {
+				container[i+1] = container[i];
+			}
+
+			container[0] = input;
+		}
+	}
+
 	command t List.popback(){
 		t returnVal;
 
