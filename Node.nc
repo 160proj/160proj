@@ -34,7 +34,7 @@ module Node{
 
 implementation{
     // Global Variables
-    const uint16_t TIMEOUT_CYCLES = 10; // # of timer 'cycles' before neighbor is removed from neighbor list
+    const uint16_t TIMEOUT_CYCLES = 3;  // # of timer 'cycles' before neighbor is removed from neighbor list
     pack sendPackage;                   // Generic packet used to hold the next packet to be sent
     uint16_t current_seq = 0;           // Sequence number of packets sent by node
 
