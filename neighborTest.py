@@ -19,19 +19,24 @@ def main():
     # Add the main channels. These channels are declared in includes/channels.h
     s.addChannel(s.COMMAND_CHANNEL);
     s.addChannel(s.GENERAL_CHANNEL);
-    s.addChannel(s.NEIGHBOR_CHANNEL);
+    #s.addChannel(s.NEIGHBOR_CHANNEL);
 
-    # After sending a ping, simulate a little to prevent collision.
-    s.runTime(1);
+    s.runTime(5);
 
-    s.neighborDMP(2);
-    s.runTime(1);
+    for i in range(1, 10):
+        s.runTime(5);
+        s.neighborDMP(i);
 
-    s.neighborDMP(1);
     s.runTime(5);
 
     s.neighborDMP(5);
-    s.runTime(1);
+    s.runTime(5);
+
+    s.moteOff(3);
+    s.runTime(15);
+
+    s.neighborDMP(5);
+    s.runTime(5);
 
 if __name__ == '__main__':
     main()
