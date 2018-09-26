@@ -7,7 +7,6 @@
 *
 */
 #include <Timer.h>
-#include <stdio.h>
 #include "includes/command.h"
 #include "includes/packet.h"
 #include "includes/CommandMsg.h"
