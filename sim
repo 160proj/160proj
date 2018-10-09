@@ -9,4 +9,4 @@ if [ ! $# -eq 1 ]; then
     exit 1
 fi
 
-sudo docker run -v "$(pwd)":/app --rm -w "/app" ucmercedandeslab/tinyos_debian python $1
+sudo docker run -v "$(pwd)":/app --rm -w "/app" ucmercedandeslab/tinyos_debian /bin/sh -c "python $1"
