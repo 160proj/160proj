@@ -1,6 +1,5 @@
 #include "../../includes/packet.h"
 
-
 module FloodingHandlerP {
     provides interface FloodingHandler;
 
@@ -9,6 +8,7 @@ module FloodingHandlerP {
 }
 
 implementation {
+
     bool isDuplicate(uint16_t src, uint16_t seq) {
         uint16_t i;
         // Loop over previous packets
@@ -23,11 +23,7 @@ implementation {
         return FALSE;
     }
 
-    command bool FloodingHandler.isValid(pack* msg) {
-        if (msg->TTL <= 0) {
-            dbg(FLOODING_CHANNEL, "TTL of packet reached. Dropping...\n");
-            return FALSE;
-        }
+    bool isValid(pack* msg) {
 
         if (isDuplicate(msg->src, msg->seq)) {
             dbg(FLOODING_CHANNEL, "Duplicate packet. Dropping...\n");
@@ -42,13 +38,14 @@ implementation {
         if (msg->dest != AM_BROADCAST_ADDR) {
             dbg(FLOODING_CHANNEL, "Packet recieved from %d. Destination: %d. Flooding...\n", msg->src, msg->dest);
         }
-        msg->TTL--;
+
         call Sender.send(*msg, AM_BROADCAST_ADDR);
     }
 
     command void FloodingHandler.flood(pack* msg) {
-        if (call FloodingHandler.isValid(msg)) {
+        if (isValid(msg)) {
             call PreviousPackets.pushbackdrop(*msg);
+
             sendFlood(msg);
         }
     }

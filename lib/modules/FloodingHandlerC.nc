@@ -1,7 +1,7 @@
 /**
  * @author Jadon Hansell
  * 
- * Provides an implementation of a flooding method for packet transmission
+ * Flooding method for packet transmission
  */
 
 #include "../../includes/packet.h"

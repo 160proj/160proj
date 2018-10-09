@@ -7,7 +7,6 @@
 *
 */
 #include <Timer.h>
-#include <stdio.h>
 #include "includes/command.h"
 #include "includes/packet.h"
 #include "includes/CommandMsg.h"
@@ -131,7 +130,8 @@ implementation{
         if (len == sizeof(pack)) {
             pack* myMsg=(pack*) payload;
 
-            if (!call FloodingHandler.isValid(myMsg)) {
+            // Check TTL
+            if (--myMsg->TTL == 0) {
                 return msg;
             }
             
@@ -174,7 +174,7 @@ implementation{
         uint8_t* payload = "Neighbor Discovery\n";
         decrement_timeout();
         makePack(&sendPackage, TOS_NODE_ID, AM_BROADCAST_ADDR, 1, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
-        call Sender.send(sendPackage, AM_BROADCAST_ADDR);
+        call Sender.send(sendPackage, AM_BROADCAST_ADDR); // FIXME Flooding handler?
     }
 
     /**
