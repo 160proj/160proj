@@ -31,15 +31,15 @@ implementation {
     components CommandHandlerC;
     Node.CommandHandler -> CommandHandlerC;
 
-    components new TimerMilliC() as NeighborTimer;
-    Node.NeighborTimer -> NeighborTimer;
-
     components RandomC;
     Node.Random -> RandomC;
 
-    components new HashmapC(uint16_t, 32) as Neighbors;
-    Node.Neighbors -> Neighbors;
-
     components FloodingHandlerC;
     Node.FloodingHandler -> FloodingHandlerC;
+
+    components new TimerMilliC() as NeighborTimer;
+    Node.NeighborTimer -> NeighborTimer;
+
+    components NeighborDiscoveryHandlerC;
+    Node.NeighborDiscoveryHandler -> NeighborDiscoveryHandlerC;
 }
