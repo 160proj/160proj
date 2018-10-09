@@ -4,7 +4,7 @@
  * Flooding method for packet transmission
  */
 
-#include "../../includes/packet.h"
+#include "../../includes/packet_id.h"
 
 configuration FloodingHandlerC {
     provides interface FloodingHandler;
@@ -17,6 +17,6 @@ implementation {
     components new SimpleSendC(AM_PACK);
     FloodingHandlerP.Sender -> SimpleSendC;
 
-    components new ListC(pack, 64);
+    components new ListC(packID, 64);
     FloodingHandlerP.PreviousPackets -> ListC;
 }

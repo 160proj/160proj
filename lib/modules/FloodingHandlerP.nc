@@ -1,10 +1,11 @@
 #include "../../includes/packet.h"
+#include "../../includes/packet_id.h"
 
 module FloodingHandlerP {
     provides interface FloodingHandler;
 
     uses interface SimpleSend as Sender;
-    uses interface List<pack> as PreviousPackets;
+    uses interface List<packID> as PreviousPackets;
 }
 
 implementation {
@@ -13,7 +14,7 @@ implementation {
         uint16_t i;
         // Loop over previous packets
         for (i = 0; i < call PreviousPackets.size(); i++) {
-            pack prevPack = call PreviousPackets.get(i);
+            packID prevPack = call PreviousPackets.get(i);
 
             // Packet can be identified by src && seq number
             if (prevPack.src == src && prevPack.seq == seq) {
@@ -44,7 +45,11 @@ implementation {
 
     command void FloodingHandler.flood(pack* msg) {
         if (isValid(msg)) {
-            call PreviousPackets.pushbackdrop(*msg);
+            packID packetID;
+            packetID.src = msg->src;
+            packetID.seq = msg->seq;
+            
+            call PreviousPackets.pushbackdrop(packetID);
 
             sendFlood(msg);
         }
