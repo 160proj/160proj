@@ -35,10 +35,9 @@ implementation {
     }
 
     void sendFlood(pack* msg) {
-        // AM_BROADCAST_ADDR used for neighbor discovery, not necessary to print
-        if (msg->dest != AM_BROADCAST_ADDR) {
+        if (msg->dest != AM_BROADCAST_ADDR && msg->src != TOS_NODE_ID) {
             dbg(FLOODING_CHANNEL, "Packet recieved from %d. Destination: %d. Flooding...\n", msg->src, msg->dest);
-        }
+        } 
 
         call Sender.send(*msg, AM_BROADCAST_ADDR);
     }
