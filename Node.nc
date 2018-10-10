@@ -131,6 +131,12 @@ implementation{
     }
 
     /**
+     * Called when a node is added or removed from the neighbor list
+     * Only performs action after a few initial discovery cycles
+     */
+    event void NeighborDiscoveryHandler.neighborListUpdated() {}
+
+    /**
      * Called when simulation issues a ping command to the node
      */
     event void CommandHandler.ping(uint16_t destination, uint8_t *payload){
