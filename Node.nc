@@ -21,25 +21,28 @@ module Node{
 
     uses interface SimpleSend as Sender;
 
-    uses interface CommandHandler;
-
     uses interface Random as Random;
+
+    uses interface CommandHandler;
 
     uses interface FloodingHandler;
 
     uses interface Timer<TMilli> as NeighborTimer;
     uses interface NeighborDiscoveryHandler;
+
+    uses interface Timer<TMilli> as RoutingTimer;
+    uses interface RoutingHandler;
 }
 
 implementation{
     // Global Variables
     pack sendPackage;                   // Generic packet used to hold the next packet to be sent
-    uint16_t current_seq = 0;           // Sequence number of packets sent by node
+    uint16_t current_seq = 1;           // Sequence number of packets sent by node
 
     // Prototypes
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t Protocol, uint16_t seq, uint8_t *payload, uint8_t length);
     void pingHandler(pack* msg);
-    uint16_t randNum(uint16_t min, uint16_t max);
+    uint32_t randNum(uint32_t min, uint32_t max);
 
     /**
      * Called when the node is started
@@ -47,7 +50,8 @@ implementation{
      */
     event void Boot.booted(){
         call AMControl.start();
-        call NeighborTimer.startPeriodic(randNum(1000,2000));
+        call NeighborTimer.startPeriodic(randNum(1000,3000));
+        call RoutingTimer.startPeriodicAt(30, randNum(25000,35000));
 
         dbg(GENERAL_CHANNEL, "Booted\n");
     }
@@ -78,7 +82,7 @@ implementation{
                 dbg(GENERAL_CHANNEL, "--- Packet Payload: %s\n", msg->payload);
                 dbg(GENERAL_CHANNEL, "--- Sending Reply...\n");
                 makePack(&sendPackage, msg->dest, msg->src, MAX_TTL, PROTOCOL_PINGREPLY, current_seq++, (uint8_t*)msg->payload, PACKET_MAX_PAYLOAD_SIZE);
-                call FloodingHandler.flood(&sendPackage);
+                call RoutingHandler.send(&sendPackage);
                 break;
                     
             case PROTOCOL_PINGREPLY:
@@ -103,9 +107,13 @@ implementation{
             if (myMsg->TTL-- == 0) {
                 return msg;
             }
-            
+
+            // Distance Vector
+            if (myMsg->protocol == PROTOCOL_DV) {
+                call RoutingHandler.distanceVectorUpdate(myMsg);
+
             // Regular Ping
-            if (myMsg->dest == TOS_NODE_ID) {
+            }else if (myMsg->dest == TOS_NODE_ID) {
                 pingHandler(myMsg);
                 
             // Neighbor Discovery
@@ -114,7 +122,7 @@ implementation{
 
             // Not Destination
             } else {
-                call FloodingHandler.flood(myMsg);
+                call RoutingHandler.send(myMsg);
             }
             return msg;
         }
@@ -130,11 +138,13 @@ implementation{
         call NeighborDiscoveryHandler.discover(current_seq++);
     }
 
-    /**
-     * Called when a node is added or removed from the neighbor list
-     * Only performs action after a few initial discovery cycles
-     */
-    event void NeighborDiscoveryHandler.neighborListUpdated() {}
+    event void RoutingTimer.fired() {
+        uint32_t* neighbors = call NeighborDiscoveryHandler.getNeighbors();
+        uint16_t numNeighbors = call NeighborDiscoveryHandler.numNeighbors();
+
+        call RoutingHandler.init(neighbors, numNeighbors);
+        call RoutingHandler.update();
+    }
 
     /**
      * Called when simulation issues a ping command to the node
@@ -142,21 +152,31 @@ implementation{
     event void CommandHandler.ping(uint16_t destination, uint8_t *payload){
         dbg(GENERAL_CHANNEL, "PING EVENT \n");
         makePack(&sendPackage, TOS_NODE_ID, destination, MAX_TTL, PROTOCOL_PING, current_seq++, payload, PACKET_MAX_PAYLOAD_SIZE);
-        call FloodingHandler.flood(&sendPackage);
+        call RoutingHandler.send(&sendPackage);
     }
 
     /**
      * Called when simulation issues a command to print the list of neighbor node IDs
      */
-    event void CommandHandler.printNeighbors(){
+    event void CommandHandler.printNeighbors() {
         call NeighborDiscoveryHandler.printNeighbors();
     }
 
-    event void CommandHandler.printRouteTable(){ dbg(GENERAL_CHANNEL, "printRouteTable\n"); }
+    /**
+     * Called when simulation issues a command to print the routing table for this node
+     */
+    event void CommandHandler.printRouteTable() {
+        call RoutingHandler.printRouteTable();
+    }
 
     event void CommandHandler.printLinkState(){ dbg(GENERAL_CHANNEL, "printLinkState\n"); }
 
-    event void CommandHandler.printDistanceVector(){ dbg(GENERAL_CHANNEL, "printDistanceVector\n"); }
+    /**
+     * Same as printRouteTable()
+     */
+    event void CommandHandler.printDistanceVector() {
+        call RoutingHandler.printRouteTable();
+    }
 
     event void CommandHandler.setTestServer(){ dbg(GENERAL_CHANNEL, "setTestServer\n"); }
 
@@ -181,7 +201,7 @@ implementation{
     /**
      * Generates a random 16-bit number between 'min' and 'max'
      */
-    uint16_t randNum(uint16_t min, uint16_t max) {
+    uint32_t randNum(uint32_t min, uint32_t max) {
         return ( call Random.rand16() % (max-min+1) ) + min;
     }
 }

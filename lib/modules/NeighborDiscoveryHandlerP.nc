@@ -20,30 +20,6 @@ implementation {
     }
 
     /**
-     * Add a node to the list of neighbors
-     * Signals the neighborListUpdated event if it is a new node
-     */
-    void addNeighbor(uint16_t src) {
-        uint16_t i;
-        uint32_t* neighbors;
-        bool isNew = TRUE;
-        
-        call Neighbors.insert(src, TIMEOUT_CYCLES);
-        neighbors = call NeighborDiscoveryHandler.getNeighbors();
-
-        for (i = 0; i < call NeighborDiscoveryHandler.numNeighbors(); i++) {
-            if (neighbors[i] == src) {
-                isNew = FALSE;
-                break;
-            }
-        }
-
-        if (isNew) {
-            signal NeighborDiscoveryHandler.neighborListUpdated();
-        }
-    }
-
-    /**
      * Helper function for processing neighbor discovery packets
      * Neighbor discovery implemented with only ping and ping replies
      */
@@ -51,13 +27,13 @@ implementation {
         switch(msg->protocol) {
             case PROTOCOL_PING:
                 dbg(NEIGHBOR_CHANNEL, "Neighbor discovery from %d. Adding to list & replying...\n", msg->src);
-                addNeighbor(msg->src);
+                call Neighbors.insert(msg->src, TIMEOUT_CYCLES);
                 pingReply(msg);
                 break;
 
             case PROTOCOL_PINGREPLY:
                 dbg(NEIGHBOR_CHANNEL, "Neighbor reply from %d. Adding to neighbor list...\n", msg->src);
-                addNeighbor(msg->src);
+                call Neighbors.insert(msg->src, TIMEOUT_CYCLES);
                 break;
 
             default:
@@ -81,7 +57,6 @@ implementation {
             // Node stopped replying, drop it
             if (timeout - 1 <= 0) {
                 call Neighbors.remove(neighbors[i]);
-                signal NeighborDiscoveryHandler.neighborListUpdated();
             }
         }
     }

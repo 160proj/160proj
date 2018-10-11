@@ -6,5 +6,4 @@ interface NeighborDiscoveryHandler {
     command uint32_t* getNeighbors();
     command uint16_t numNeighbors();
     command void printNeighbors();
-    event void neighborListUpdated();
 }

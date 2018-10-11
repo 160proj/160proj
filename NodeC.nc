@@ -28,11 +28,11 @@ implementation {
     components new SimpleSendC(AM_PACK);
     Node.Sender -> SimpleSendC;
 
-    components CommandHandlerC;
-    Node.CommandHandler -> CommandHandlerC;
-
     components RandomC;
     Node.Random -> RandomC;
+
+    components CommandHandlerC;
+    Node.CommandHandler -> CommandHandlerC;
 
     components FloodingHandlerC;
     Node.FloodingHandler -> FloodingHandlerC;
@@ -40,6 +40,12 @@ implementation {
     components new TimerMilliC() as NeighborTimer;
     Node.NeighborTimer -> NeighborTimer;
 
+    components new TimerMilliC() as RoutingTimer;
+    Node.RoutingTimer -> RoutingTimer;
+
     components NeighborDiscoveryHandlerC;
     Node.NeighborDiscoveryHandler -> NeighborDiscoveryHandlerC;
+
+    components RoutingHandlerC;
+    Node.RoutingHandler -> RoutingHandlerC;
 }
