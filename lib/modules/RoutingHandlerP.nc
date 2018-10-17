@@ -19,7 +19,6 @@ module RoutingHandlerP {
 
 implementation {
 
-    // const uint16_t routesPerPacket = PACKET_MAX_PAYLOAD_SIZE / ROUTE_SIZE;
     uint16_t routesPerPacket = 1;
 
     /**
@@ -111,6 +110,9 @@ implementation {
         dbg(ROUTING_CHANNEL, "ERROR - Update attempt on nonexistent route %d\n", route.dest);
     }
 
+    /**
+     * Resets the 'route changed' flag in all routes
+     */
     void resetRouteUpdates() {
         uint16_t size = call RoutingTable.size();
         uint16_t i;
@@ -232,6 +234,10 @@ implementation {
         call Sender.send(*msg, route.next_hop);
     }
 
+    /**
+     * Called when the node recieves a routing packet
+     * Processes the route information from the packet
+     */
     command void RoutingHandler.recieve(pack* routing_packet) {
         uint16_t i;
 
@@ -312,7 +318,6 @@ implementation {
                     existing_route.cost = current_route.cost;
                 
                 // No updated cost, just reinitialize the timer
-                // NOTE: maybe update next_hop?
                 } else {
                     existing_route.TTL = ROUTE_TIMEOUT;
                 }
@@ -416,36 +421,27 @@ implementation {
         msg.protocol = PROTOCOL_DV;
         msg.seq = 0; // NOTE: Change if requests are needed
 
-        // Send to all neighbors
-        // for (i = 0; i < numNeighbors; i++) {
+        memset((&msg.payload), '\0', PACKET_MAX_PAYLOAD_SIZE);
 
+        // Go through all routes looking for changed ones
+        for (current_route = 0; current_route < size; current_route++) {
+            Route route = call RoutingTable.get(current_route);
 
-            memset((&msg.payload), '\0', PACKET_MAX_PAYLOAD_SIZE);
+            msg.dest = route.dest;
 
-            // Go through all routes looking for changed ones
-            for (current_route = 0; current_route < size; current_route++) {
-                Route route = call RoutingTable.get(current_route);
+            if (route.route_changed) {
 
-                msg.dest = route.dest;
+                memcpy((&msg.payload) + packet_index*ROUTE_SIZE, &route, ROUTE_SIZE);
 
-                if (route.route_changed) {
+                packet_index++;
+                if (packet_index == routesPerPacket) {
+                    packet_index = 0;
 
-                    // if (route.next_hop == TOS_NODE_ID) {
-                    //     route.cost = ROUTE_MAX_COST;
-                    // }
-
-                    memcpy((&msg.payload) + packet_index*ROUTE_SIZE, &route, ROUTE_SIZE);
-
-                    packet_index++;
-                    if (packet_index == routesPerPacket) {
-                        packet_index = 0;
-
-                        call Sender.send(msg, AM_BROADCAST_ADDR);
-                        memset((&msg.payload), '\0', PACKET_MAX_PAYLOAD_SIZE);
-                    }
+                    call Sender.send(msg, AM_BROADCAST_ADDR);
+                    memset((&msg.payload), '\0', PACKET_MAX_PAYLOAD_SIZE);
                 }
             }
-        // }
+        }
 
         resetRouteUpdates();
     }
