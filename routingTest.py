@@ -21,55 +21,27 @@ def main():
     s.addChannel(s.GENERAL_CHANNEL);
     s.addChannel(s.ROUTING_CHANNEL);
 
-    s.runTime(600);
+    # Regular routing test
+    s.runTime(100);
 
     for i in range(1, 10):
         s.routeDMP(i);
         s.runTime(5);
 
-
-    s.neighborDMP(5);
-    s.runTime(1);
-    s.routeDMP(5);
-    s.runTime(5);
-
-    s.neighborDMP(2);
-    s.runTime(1);
-    s.routeDMP(2);
-    s.runTime(5);
-
-    s.neighborDMP(9);
-    s.runTime(1);
-    s.routeDMP(9);
-    s.runTime(5);
-
-    s.ping(1, 9, "Test");
+    s.ping(2, 9, "Test");
     s.runTime(5);
     
+    # Test routing with a suddenly invalidated path
     s.moteOff(3);
-    s.runTime(600);
-    
-    s.neighborDMP(5);
-    s.runTime(1);
-    s.routeDMP(5);
-    s.runTime(5);
+    s.runTime(100);
 
-    s.neighborDMP(9);
-    s.runTime(1);
-    s.routeDMP(9);
-    s.runTime(5);
-
-    s.neighborDMP(1);
-    s.runTime(1);
-    s.routeDMP(1);
-    s.runTime(5);
-
-    s.neighborDMP(2);
-    s.runTime(1);
     s.routeDMP(2);
     s.runTime(5);
 
-    s.ping(1, 9, "Test");
+    s.routeDMP(9);
+    s.runTime(5);
+
+    s.ping(2, 9, "Test");
     s.runTime(5);
 
 if __name__ == '__main__':
