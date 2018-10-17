@@ -64,6 +64,11 @@ def main():
     s.routeDMP(1);
     s.runTime(5);
 
+    s.neighborDMP(2);
+    s.runTime(1);
+    s.routeDMP(2);
+    s.runTime(5);
+
     s.ping(1, 9, "Test");
     s.runTime(5);
 
