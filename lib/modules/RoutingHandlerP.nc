@@ -135,11 +135,21 @@ implementation {
         // Invalidates missing neighbors
         for (i = 0; i < numRoutes; i++) { 
             Route route = call RoutingTable.get(routes[i]);
-            if (route.cost == 1) {
+            uint16_t j;
+            bool isNeighbor = FALSE;
+
+            for (j = 0; j < size; j++) {
+                if (neighbors[j] == routes[i]) {
+                    isNeighbor = TRUE;
+                }
+            }
+
+            if (route.cost == 1 && !isNeighbor) {
                 route.cost = MAX_ROUTE_TTL;
                 addEntry(routes[i], route);
                 sendDV(AM_BROADCAST_ADDR);
             }
+            
         }
 
         // Adds neighbors to routing table
