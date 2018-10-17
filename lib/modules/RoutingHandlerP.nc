@@ -37,12 +37,6 @@ implementation {
         uint16_t size = call RoutingTable.size();
         uint16_t i;
 
-        // Attempted poison-reverse
-        if (src == newRoute->next_hop && newRoute->cost >= MAX_ROUTE_TTL) {
-            addEntry(src, *newRoute);
-            return;
-        }
-
         for (i = 0; i < size; i++) {
             Route route = call RoutingTable.get(routes[i]);
             if (newRoute->dest == route.dest) {
@@ -77,10 +71,12 @@ implementation {
      * Sends a distance vector table to provided neighbor
      * Requires sequence number for packet
      */
-    void sendDV(uint16_t neighbor) {
+    void sendDV(uint32_t* neighbors, uint16_t numNeighbors) {
         uint32_t* routes = call RoutingTable.getKeys();
         uint16_t size = call RoutingTable.size();
-        uint16_t i = 0;
+        uint16_t current_route;
+        uint16_t current_neighbor;
+
         pack msg;
 
         msg.src = TOS_NODE_ID;
@@ -89,14 +85,26 @@ implementation {
         msg.protocol = PROTOCOL_DV;
         msg.seq = 1;
 
-        for (i = 0; i < size; i++) {
-            Route route = call RoutingTable.get(routes[i]);
 
-            msg.dest = routes[i];
-            memset(&msg.payload, '\0', PACKET_MAX_PAYLOAD_SIZE);
-            memcpy(&msg.payload, &route, ROUTE_SIZE);
+        for (current_neighbor = 0; current_neighbor < numNeighbors; current_neighbor++) {
 
-            call Sender.send(msg, neighbor);
+            // Send every route to each neighbor
+            for (current_route = 0; current_route < size; current_route++) {
+
+                Route route = call RoutingTable.get( routes[current_route] );
+                msg.dest = routes[current_route];
+
+
+                // Split Horizon w/ Poison Reverse
+                if (route.next_hop == neighbors[current_neighbor]) {
+                    route.cost = MAX_ROUTE_TTL;
+                }
+
+                memset(&msg.payload, '\0', PACKET_MAX_PAYLOAD_SIZE);
+                memcpy(&msg.payload, &route, ROUTE_SIZE);
+
+                call Sender.send(msg, neighbors[current_neighbor]);
+            }
         }
     }
 
@@ -127,7 +135,7 @@ implementation {
      * Initializes the routing table with existing neighbors
      * Called with timer
      */
-    command void RoutingHandler.init(uint32_t* neighbors, uint16_t size) {
+    command void RoutingHandler.init(uint32_t* neighbors, uint16_t numNeighbors) {
         uint32_t* routes = call RoutingTable.getKeys();
         uint16_t numRoutes = call RoutingTable.size();
         uint16_t i;
@@ -138,7 +146,7 @@ implementation {
             uint16_t j;
             bool isNeighbor = FALSE;
 
-            for (j = 0; j < size; j++) {
+            for (j = 0; j < numNeighbors; j++) {
                 if (neighbors[j] == routes[i]) {
                     isNeighbor = TRUE;
                 }
@@ -147,13 +155,13 @@ implementation {
             if (route.cost == 1 && !isNeighbor) {
                 route.cost = MAX_ROUTE_TTL;
                 addEntry(routes[i], route);
-                sendDV(AM_BROADCAST_ADDR);
+                sendDV(neighbors, numNeighbors);
             }
             
         }
 
         // Adds neighbors to routing table
-        for (i = 0; i < size; i++) {
+        for (i = 0; i < numNeighbors; i++) {
             Route route;
             route.cost = 0;
             route.dest = neighbors[i];
@@ -164,7 +172,7 @@ implementation {
     /**
      * Called by timer running periodic update
      */
-    command void RoutingHandler.update() {
+    command void RoutingHandler.update(uint32_t* neighbors, uint16_t numNeighbors) {
         uint32_t* routes = call RoutingTable.getKeys();
         uint16_t size = call RoutingTable.size();
         uint16_t i;
@@ -193,7 +201,7 @@ implementation {
             }
         }
         
-        sendDV(AM_BROADCAST_ADDR);
+        sendDV(neighbors, numNeighbors);
     }
 
     /**

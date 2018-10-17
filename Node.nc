@@ -143,7 +143,7 @@ implementation{
         uint16_t numNeighbors = call NeighborDiscoveryHandler.numNeighbors();
 
         call RoutingHandler.init(neighbors, numNeighbors);
-        call RoutingHandler.update();
+        call RoutingHandler.update(neighbors, numNeighbors);
     }
 
     /**

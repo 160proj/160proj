@@ -38,9 +38,9 @@ def main():
     s.routeDMP(2);
     s.runTime(5);
 
-    s.neighborDMP(1);
+    s.neighborDMP(9);
     s.runTime(1);
-    s.routeDMP(1);
+    s.routeDMP(9);
     s.runTime(5);
 
     s.ping(1, 9, "Test");
@@ -54,9 +54,9 @@ def main():
     s.routeDMP(5);
     s.runTime(5);
 
-    s.neighborDMP(2);
+    s.neighborDMP(9);
     s.runTime(1);
-    s.routeDMP(2);
+    s.routeDMP(9);
     s.runTime(5);
 
     s.neighborDMP(1);
