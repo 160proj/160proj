@@ -50,9 +50,9 @@ implementation{
      */
     event void Boot.booted(){
         call AMControl.start();
-        call NeighborTimer.startPeriodic(randNum(1000,3000));
-        call RoutingTimer.startPeriodicAt(30, randNum(25000,35000));
-
+        call NeighborTimer.startPeriodic( randNum(10000, 20000) );
+        call RoutingTimer.startPeriodic( randNum(25000, 35000) );
+        
         dbg(GENERAL_CHANNEL, "Booted\n");
     }
 
@@ -110,7 +110,7 @@ implementation{
 
             // Distance Vector
             if (myMsg->protocol == PROTOCOL_DV) {
-                call RoutingHandler.distanceVectorUpdate(myMsg);
+                call RoutingHandler.recieve(myMsg);
 
             // Regular Ping
             }else if (myMsg->dest == TOS_NODE_ID) {
@@ -138,12 +138,15 @@ implementation{
         call NeighborDiscoveryHandler.discover(current_seq++);
     }
 
+    /**
+     * Starts routing process and keeps neighbor list up to date for the router
+     */
     event void RoutingTimer.fired() {
         uint32_t* neighbors = call NeighborDiscoveryHandler.getNeighbors();
         uint16_t numNeighbors = call NeighborDiscoveryHandler.numNeighbors();
 
-        call RoutingHandler.init(neighbors, numNeighbors);
-        call RoutingHandler.update(neighbors, numNeighbors);
+        call RoutingHandler.updateNeighbors(neighbors, numNeighbors);
+        call RoutingHandler.start();
     }
 
     /**
@@ -166,7 +169,7 @@ implementation{
      * Called when simulation issues a command to print the routing table for this node
      */
     event void CommandHandler.printRouteTable() {
-        call RoutingHandler.printRouteTable();
+        call RoutingHandler.printRoutingTable();
     }
 
     event void CommandHandler.printLinkState(){ dbg(GENERAL_CHANNEL, "printLinkState\n"); }
@@ -175,7 +178,7 @@ implementation{
      * Same as printRouteTable()
      */
     event void CommandHandler.printDistanceVector() {
-        call RoutingHandler.printRouteTable();
+        call RoutingHandler.printRoutingTable();
     }
 
     event void CommandHandler.setTestServer(){ dbg(GENERAL_CHANNEL, "setTestServer\n"); }

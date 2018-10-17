@@ -4,6 +4,7 @@
  * Distance vector implementtion for routing packets
  */
 
+#include <Timer.h>
 #include "../../includes/route.h"
 
 configuration RoutingHandlerC {
@@ -14,10 +15,19 @@ implementation {
     components RoutingHandlerP;
     RoutingHandler = RoutingHandlerP;
 
-    // No more than 256 nodes in system
-    components new HashmapC(Route, 256);
-    RoutingHandlerP.RoutingTable -> HashmapC;
+    components RandomC;
+    RoutingHandlerP.Random -> RandomC;
+
+    // No more than 256 nodes in system 
+    components new ListC(Route, 256);
+    RoutingHandlerP.RoutingTable -> ListC;
 
     components new SimpleSendC(AM_PACK);
     RoutingHandlerP.Sender -> SimpleSendC;
+
+    components new TimerMilliC() as TriggeredEventTimer;
+    RoutingHandlerP.TriggeredEventTimer -> TriggeredEventTimer;
+
+    components new TimerMilliC() as RegularTimer;
+    RoutingHandlerP.RegularTimer -> RegularTimer;
 }

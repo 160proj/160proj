@@ -21,7 +21,7 @@ def main():
     s.addChannel(s.GENERAL_CHANNEL);
     s.addChannel(s.ROUTING_CHANNEL);
 
-    s.runTime(100);
+    s.runTime(600);
 
     for i in range(1, 10):
         s.routeDMP(i);
@@ -47,7 +47,7 @@ def main():
     s.runTime(5);
     
     s.moteOff(3);
-    s.runTime(100);
+    s.runTime(600);
     
     s.neighborDMP(5);
     s.runTime(1);
