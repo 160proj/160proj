@@ -1,4 +1,3 @@
-
 configuration TCPHandlerC{
     provides interface TCPHandler;
 }
