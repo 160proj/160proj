@@ -1,3 +1,5 @@
+#include "../../includes/socket.h"
+#include "../../includes/packet.h"
 module TCPHandlerP {
     provides interface TCPHandler;
 
@@ -5,15 +7,24 @@ module TCPHandlerP {
 }
 
 implementation {
-
-    event void SrcTimeout.fired(){
-        
-
-    }
+event void TCPHandler.fired(){
+    
+}
     command void TCPHandler.start() {
         if (!call SrcTimeout.isRunning()) {
-            call SrcTimeout.startPeriodic(1000);
+            call SrcTimeout.startPeriodic(3000);
         }
     }
     
+    command void TCPHandler.send(pack* msg) {
+        // create socket if it doesnt already exist
+        // update state to SYN_SENT
+        // send SYN packet to dest node
+
+    }
+
+    command void TCPHandler.recieve(pack* msg) {
+        // create socket if it doesnt aready exist
+        // 
+    }
 }
