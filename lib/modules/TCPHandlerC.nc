@@ -3,6 +3,8 @@ configuration TCPHandlerC{
 }
 
 implementation {
+    components TCPHandlerP;
+    TCPHandler = TCPHandlerP;
     
 }
 

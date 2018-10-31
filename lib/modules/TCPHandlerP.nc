@@ -1,3 +1,4 @@
+#include <Timer.h>
 #include "../../includes/socket.h"
 #include "../../includes/packet.h"
 module TCPHandlerP {
@@ -20,11 +21,17 @@ event void TCPHandler.fired(){
         // create socket if it doesnt already exist
         // update state to SYN_SENT
         // send SYN packet to dest node
+        socket_t srcSock;
+        srcSock = msg -> src;
+
 
     }
 
     command void TCPHandler.recieve(pack* msg) {
         // create socket if it doesnt aready exist
         // 
+        socket_t destSock;
+        destSock = msg -> dest; 
+        
     }
 }
