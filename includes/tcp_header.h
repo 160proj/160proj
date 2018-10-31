@@ -7,10 +7,10 @@ enum {
 };
 
 enum {
-    SYN = 0,
-    ACK = 1,
-    FIN = 2,
-    DATA = 3
+    SYN,
+    ACK,
+    FIN,
+    DATA,
 };
 
 typedef nx_struct tcp_header {

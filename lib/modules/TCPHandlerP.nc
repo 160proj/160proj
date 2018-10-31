@@ -1,6 +1,7 @@
 #include <Timer.h>
 #include "../../includes/socket.h"
 #include "../../includes/packet.h"
+#include "../../includes/tcp_header.h"
 
 module TCPHandlerP {
     provides interface TCPHandler;
@@ -10,7 +11,7 @@ module TCPHandlerP {
 }
 
 implementation {
-    event void TCPHandler.fired() {
+    event void SrcTimeout.fired() {
     
     }
 
