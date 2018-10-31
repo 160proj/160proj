@@ -1,16 +1,19 @@
 #include <Timer.h>
 #include "../../includes/socket.h"
 #include "../../includes/packet.h"
+
 module TCPHandlerP {
     provides interface TCPHandler;
 
     uses interface Timer<TMilli> as SrcTimeout;
+    uses interface Hashmap<socket_t> as SocketMap;
 }
 
 implementation {
-event void TCPHandler.fired(){
+    event void TCPHandler.fired() {
     
-}
+    }
+
     command void TCPHandler.start() {
         if (!call SrcTimeout.isRunning()) {
             call SrcTimeout.startPeriodic(3000);
@@ -23,8 +26,6 @@ event void TCPHandler.fired(){
         // send SYN packet to dest node
         socket_t srcSock;
         srcSock = msg -> src;
-
-
     }
 
     command void TCPHandler.recieve(pack* msg) {
