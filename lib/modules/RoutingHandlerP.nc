@@ -167,9 +167,9 @@ implementation {
             }
         }
         // Garbage collection timer expired, remove route
-        else if (route.TTL == 0 && route.cost == ROUTE_MAX_COST) {
-            removeRoute(route.dest);
-        }     
+        // else if (route.TTL == 0 && route.cost == ROUTE_MAX_COST) {
+        //     removeRoute(route.dest);
+        // }     
     }
 
     /**
@@ -335,6 +335,32 @@ implementation {
         uint16_t i;
         uint16_t size = call RoutingTable.size();
 
+        // Add neighbors to routing table
+        for (i = 0; i < numNeighbors; i++) {
+            Route route;
+
+            route.dest = neighbors[i];
+            route.cost = 1;
+            route.next_hop = neighbors[i];
+            route.TTL = ROUTE_TIMEOUT;
+            route.route_changed = TRUE;
+
+            if (inTable(route.dest)) {
+                Route existing_route = getRoute(route.dest);
+
+                // Existing node suddenly became a new neighbor
+                if (existing_route.cost != route.cost) {
+                    updateRoute(route);
+                    triggeredUpdate();
+                }
+            }
+            // New neighbor 
+            else {
+                call RoutingTable.pushback(route);
+                triggeredUpdate();
+            }
+        }
+
         // Invalidate missing neighbors (in case one is dropped)
         for (i = 0; i < size; i++) {
             Route route = call RoutingTable.get(i);
@@ -359,33 +385,6 @@ implementation {
                 if (!isNeighbor) {
                     invalidate(route);
                 }
-            }
-
-        }
-
-        // Add neighbors to routing table
-        for (i = 0; i < numNeighbors; i++) {
-            Route route;
-
-            route.dest = neighbors[i];
-            route.cost = 1;
-            route.next_hop = neighbors[i];
-            route.TTL = ROUTE_TIMEOUT;
-            route.route_changed = TRUE;
-
-            if (inTable(route.dest)) {
-                Route existing_route = getRoute(route.dest);
-
-                // Existing node suddenly became a new neighbor
-                if (existing_route.cost != route.cost) {
-                    updateRoute(route);
-                    triggeredUpdate();
-                }
-            }
-            // New neighbor 
-            else {
-                call RoutingTable.pushback(route);
-                triggeredUpdate();
             }
         }
     }
