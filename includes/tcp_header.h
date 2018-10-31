@@ -2,9 +2,16 @@
 #define TCP_HEADER_H
 
 enum {
-    TCP_HEADER_SIZE = 9
+    TCP_HEADER_SIZE = 9,
     TCP_PAYLOAD_SIZE = 20 - TCP_HEADER_SIZE
-}
+};
+
+enum {
+    SYN = 0,
+    ACK = 1,
+    FIN = 2,
+    DATA = 3
+};
 
 typedef nx_struct tcp_header {
     nx_uint8_t src_port;
