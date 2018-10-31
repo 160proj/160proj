@@ -3,7 +3,7 @@
 
 enum {
     TCP_HEADER_SIZE = 9,
-    TCP_PAYLOAD_SIZE = 20 - TCP_HEADER_SIZE
+    TCP_PAYLOAD_SIZE = 20 - TCP_HEADER_SIZE,
 };
 
 enum {
