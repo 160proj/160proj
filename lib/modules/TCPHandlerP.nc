@@ -2,21 +2,16 @@
 #include "../../includes/socket.h"
 #include "../../includes/packet.h"
 #include "../../includes/tcp_header.h"
-
 module TCPHandlerP {
     provides interface TCPHandler;
 
     uses interface Timer<TMilli> as SrcTimeout;
-
-    // Refer to hashmap keys with the 'socket_t' type
-    uses interface Hashmap<socket_store_t> as SocketMap;
 }
 
 implementation {
-    event void SrcTimeout.fired() {
+event void TCPHandler.fired(){
     
-    }
-
+}
     command void TCPHandler.start() {
         if (!call SrcTimeout.isRunning()) {
             call SrcTimeout.startPeriodic(3000);
@@ -27,13 +22,23 @@ implementation {
         // create socket if it doesnt already exist
         // update state to SYN_SENT
         // send SYN packet to dest node
-        socket_t srcSock;
-        srcSock = msg -> src;
+        
+        socket_store_t srcSock;
+        srcSock -> src = msg -> src;
+        if (srcSock -> state == socket_state.CLOSED){
+            srcSock -> state = socket_state.SYN_SENT;
+            return;
+        }
+        
+    
+
+
     }
 
     command void TCPHandler.recieve(pack* msg) {
         // create socket if it doesnt aready exist
         // 
+
         socket_t destSock;
         destSock = msg -> dest; 
         
