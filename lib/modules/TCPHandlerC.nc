@@ -1,4 +1,4 @@
-#include "../../socket.h"
+#include "../../includes/socket.h"
 
 configuration TCPHandlerC{
     provides interface TCPHandler;
@@ -9,6 +9,6 @@ implementation {
     TCPHandler = TCPHandlerP;
     
     components new HashmapC(socket_t, 256);
-    TCPHandler.SocketMap -> HashmapC;
+    TCPHandlerP.SocketMap -> HashmapC;
 }
 

@@ -48,4 +48,7 @@ implementation {
 
     components RoutingHandlerC;
     Node.RoutingHandler -> RoutingHandlerC;
+
+    components TCPHandlerC;
+    Node.TCPHandler -> TCPHandlerC;
 }

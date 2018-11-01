@@ -32,6 +32,8 @@ module Node{
 
     uses interface Timer<TMilli> as RoutingTimer;
     uses interface RoutingHandler;
+
+    uses interface TCPHandler;
 }
 
 implementation{
