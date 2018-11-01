@@ -28,12 +28,10 @@ implementation {
         socket_store_t srcSock;
         srcSock.src = srcPort;
         if (srcSock.state == CLOSED){
-            srcSock.state = SYN_SENT;
-        }
-
-        if (srcSock.state == SYN_SENT){
             tcp_header syn_header; 
             pack msg;
+
+            srcSock.state = SYN_SENT;
             syn_header.src_port = srcPort;
             syn_header.dest_port = destPort;
             syn_header.flags = SYN;
@@ -48,6 +46,8 @@ implementation {
 
 
         }
+
+       
         
     
 
