@@ -187,6 +187,8 @@ implementation{
 
     event void CommandHandler.setTestClient(){ dbg(GENERAL_CHANNEL, "setTestClient\n"); }
 
+    event void CommandHandler.closeClient(){ dbg(GENERAL_CHANNEL, "closeClient\n");}
+
     event void CommandHandler.setAppServer(){ dbg(GENERAL_CHANNEL, "setAppServer\n"); }
 
     event void CommandHandler.setAppClient(){ dbg(GENERAL_CHANNEL, "setAppClient\n"); }
