@@ -40,8 +40,11 @@ implementation {
         // create socket if it doesnt aready exist
         // 
 
-        socket_t destSock;
-        destSock = msg -> dest; 
+        socket_store_t destSock;
+        destSock.src = msg -> dest; 
+        if (destSock.state == LISTEN){
+            destSock.state = SYN_RCVD;
+        }
         
     }
 }
