@@ -20,15 +20,33 @@ implementation {
         }
     }
     
-    command void TCPHandler.send(pack* msg) {
+    command void TCPHandler.send(uint8_t dest, uint8_t srcPort, uint8_t destPort, uint32_t transfer) {
         // create socket if it doesnt already exist
         // update state to SYN_SENT
         // send SYN packet to dest node
         
         socket_store_t srcSock;
-        srcSock.src = msg -> src;
+        srcSock.src = srcPort;
         if (srcSock.state == CLOSED){
             srcSock.state = SYN_SENT;
+        }
+
+        if (srcSock.state == SYN_SENT){
+            tcp_header syn_header; 
+            pack msg;
+            syn_header.src_port = srcPort;
+            syn_header.dest_port = destPort;
+            syn_header.flags = SYN;
+            syn_header.seq = 0;
+            syn_header.advert_window = 1;
+            msg.src = TOS_NODE_ID;
+            msg.dest = dest;
+            msg.seq = 0;
+            msg.TTL = MAX_TTL;
+            msg.protocol = PROTOCOL_TCP;
+            memcpy(&msg.payload,&syn_header,TCP_PAYLOAD_SIZE);  
+
+
         }
         
     
