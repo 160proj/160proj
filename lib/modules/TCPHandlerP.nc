@@ -6,12 +6,14 @@ module TCPHandlerP {
     provides interface TCPHandler;
 
     uses interface Timer<TMilli> as SrcTimeout;
+    uses interface Hashmap<socket_store_t> as SocketMap;
 }
 
 implementation {
-event void TCPHandler.fired(){
-    
-}
+    event void SrcTimeout.fired(){
+        
+    }
+
     command void TCPHandler.start() {
         if (!call SrcTimeout.isRunning()) {
             call SrcTimeout.startPeriodic(3000);
@@ -24,10 +26,9 @@ event void TCPHandler.fired(){
         // send SYN packet to dest node
         
         socket_store_t srcSock;
-        srcSock -> src = msg -> src;
-        if (srcSock -> state == socket_state.CLOSED){
-            srcSock -> state = socket_state.SYN_SENT;
-            return;
+        srcSock.src = msg -> src;
+        if (srcSock.state == CLOSED){
+            srcSock.state = SYN_SENT;
         }
         
     
