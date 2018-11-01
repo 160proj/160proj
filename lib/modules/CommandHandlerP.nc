@@ -70,17 +70,17 @@ implementation{
 
             case CMD_TEST_CLIENT:
                 dbg(COMMAND_CHANNEL, "Command Type: Test Client\n");
-                signal CommandHandler.setTestClient();
+                signal CommandHandler.setTestClient(buff[0], buff[1], buff[2], buff[3]);
                 break;
 
             case CMD_TEST_SERVER:
                 dbg(COMMAND_CHANNEL, "Command Type: Test Server\n");
-                signal CommandHandler.setTestServer();
+                signal CommandHandler.setTestServer(buff[0]);
                 break;
 
             case CMD_CLOSE_CLIENT:
                 dbg(COMMAND_CHANNEL, "Command Type: Clost Client");
-                signal CommandHandler.closeClient();
+                signal CommandHandler.closeClient(buff[0], buff[1], buff[2]);
                 break;
 
             default:

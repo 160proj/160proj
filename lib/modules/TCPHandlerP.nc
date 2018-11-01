@@ -10,6 +10,123 @@ module TCPHandlerP {
 }
 
 implementation {
+    socket_t next_fd = 1; /** Next open file descriptor to bind a socket to */
+
+    /**
+     * Returns the next valid file descriptor
+     * Returns 0 if none were found
+     */
+    socket_t getNextFD() {
+        uint32_t* fds = call SocketMap.getKeys(); 
+        uint16_t size = call SocketMap.size();
+        socket_t fd = 1;
+        uint8_t i;
+
+        for (fd = 1; fd > 0; fd++) {
+            bool found = FALSE;
+            for (i = 0; i < size; i++) {
+                if (fd != (socket_t)fds[i]) {
+                    found = TRUE;
+                }
+            }
+
+            if (!found) {
+                return fd;
+            }      
+        }
+
+        dbg(TRANSPORT_CHANNEL, "Error: No valid next file descriptor found\n");
+        return 0;
+    }
+
+    /**
+     * Returns the file descriptor associated with the socket for dest, srcPort, and destPort
+     * Returns 0 if no sockets are found with those criteria
+     */
+    socket_t getFD(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
+        uint32_t* fds = call SocketMap.getKeys();
+        uint16_t size = call SocketMap.size();
+        uint16_t i;
+
+        for (i = 0; i < size; i++) {
+            socket_store_t socket = call SocketMap.get(fds[i]);
+            if (socket.src == srcPort &&
+                socket.dest.port == destPort &&
+                socket.dest.addr == dest) {
+                    return (socket_t)fds[i];
+                }
+        }
+
+        dbg(TRANSPORT_CHANNEL, "Error: File descriptor not found for dest: %d, srcPort: %d, destPort: %d", dest, srcPort, destPort);
+        return 0;
+    }
+
+    /**
+     * Adds a socket to the list of sockets
+     * AUtomatically assigns a file descriptor
+     */
+    void addSocket(socket_store_t socket) {
+        call SocketMap.insert(next_fd, socket);
+        next_fd = getNextFD();
+    }
+
+    /**
+     * Create a 'server' socket on 'port' and begins listening for incoming connections
+     */
+    command void TCPHandler.startServer(uint16_t port) {
+        uint16_t num_connections = call SocketMap.size();
+        socket_store_t socket;
+
+        if (num_connections == MAX_NUM_OF_SOCKETS) {
+            dbg(TRANSPORT_CHANNEL, "Cannot create server at Port %d: Max num of sockets reached\n");
+        }
+
+        socket.src = TOS_NODE_ID;
+        socket.state = LISTEN;
+
+        addSocket(socket);
+        dbg(TRANSPORT_CHANNEL, "Server started on Port %d\n", port);
+        // TODO: Figure out what the pdf means starting with the 'startTimer' line
+    }
+
+    /**
+     * Creates a 'client' socket on srcPort, and attempts to send 'transfer' bytes to
+     * port 'destPort' at node 'dest'
+     */
+    command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort,
+                                        uint16_t destPort, uint16_t transfer) {
+        socket_store_t socket;
+        socket_addr_t destination;
+        socket.src = TOS_NODE_ID;
+
+        destination.port = destPort;
+        destination.addr = dest;
+        socket.dest = destination;
+
+        socket.state = CLOSED;
+
+        addSocket(socket);
+
+        dbg(TRANSPORT_CHANNEL, "Client started on Port %d with destination %d: %d\n", srcPort, dest, destPort);
+        dbg(TRANSPORT_CHANNEL, "Transferring %d bytes to destination...\n", transfer);
+
+        //TODO: Send bytes
+    }
+
+    /**
+     * Closes the connection on 'srcPort' associated with port 'destPort' at node 'dest'
+     */
+    command void TCPHandler.closeClient(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
+        socket_t fd = getFD(dest, srcPort, destPort);
+        dbg(TRANSPORT_CHANNEL, "Closing client on Port %d with destination %d: %d\n", srcPort, dest, destPort);
+        
+        if (fd == 0) {
+            dbg(TRANSPORT_CHANNEL, "Error: Cannot close client, socket not found\n");
+        }
+
+        call SocketMap.remove(fd);
+    }
+
     event void SrcTimeout.fired(){
         
     }

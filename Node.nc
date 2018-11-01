@@ -183,11 +183,34 @@ implementation{
         call RoutingHandler.printRoutingTable();
     }
 
-    event void CommandHandler.setTestServer(){ dbg(GENERAL_CHANNEL, "setTestServer\n"); }
+    /**
+     * Called when simulation issues a command to listen for incomming connections on port 'port'
+     * Creates a socket as a server
+     */
+    event void CommandHandler.setTestServer(uint16_t port) {
+        dbg(GENERAL_CHANNEL, "TEST_SERVER EVENT\n");
+        call TCPHandler.startServer(port);
+    }
 
-    event void CommandHandler.setTestClient(){ dbg(GENERAL_CHANNEL, "setTestClient\n"); }
+    /**
+     * Called when simulation issues a command to send 'transfer' bytes
+     * from 'srcPort' to 'destPort' at node 'dest'
+     * Creates a socket as a client
+     */
+    event void CommandHandler.setTestClient(uint16_t dest, uint16_t srcPort, 
+                                            uint16_t destPort, uint16_t transfer) {
+        dbg(GENERAL_CHANNEL, "TEST_CLIENT EVENT\n");
+        call TCPHandler.startClient(dest, srcPort, destPort, transfer);
+    }
 
-    event void CommandHandler.closeClient(){ dbg(GENERAL_CHANNEL, "closeClient\n");}
+    /**
+     * Called when simulation issues a command to close the connection 
+     * from 'srcPort' to 'destPort' at node 'dest'
+     */
+    event void CommandHandler.closeClient(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
+        dbg(GENERAL_CHANNEL, "CLOSE_CLIENT EVENT\n");
+        call TCPHandler.closeClient(dest, srcPort, destPort);
+    }
 
     event void CommandHandler.setAppServer(){ dbg(GENERAL_CHANNEL, "setAppServer\n"); }
 
