@@ -39,10 +39,10 @@ class CommandMsg(tinyos.message.Message.Message):
         except:
             pass
         try:
-            s += "  [payload=";
+            s += "  [payload="
             for i in range(0, 25):
                 s += "0x%x " % (self.getElement_payload(i) & 0xff)
-            s += "]\n";
+            s += "]\n"
         except:
             pass
         return s
@@ -287,7 +287,7 @@ class CommandMsg(tinyos.message.Message.Message):
     # Read the array 'payload' as a String
     #
     def getString_payload(self):
-        carr = "";
+        carr = ""
         for i in range(0, 4000):
             if self.getElement_payload(i) == chr(0):
                 break
