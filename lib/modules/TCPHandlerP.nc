@@ -7,7 +7,9 @@ module TCPHandlerP {
     provides interface TCPHandler;
 
     uses interface Timer<TMilli> as SrcTimeout;
-    uses interface Hashmap<socket_t> as SocketMap;
+
+    // Refer to hashmap keys with the 'socket_t' type
+    uses interface Hashmap<socket_store_t> as SocketMap;
 }
 
 implementation {
