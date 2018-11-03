@@ -171,14 +171,30 @@ implementation {
 
     }
 
-    command void TCPHandler.recieve(pack* msg) {
+    command void TCPHandler.recieve(pack* msg, uint8_t dest, uint8_t srcPort, uint8_t destPort, uint32_t transfer) {
         // create socket if it doesnt aready exist
         // 
 
         socket_store_t destSock;
         destSock.src = msg -> dest; 
         if (destSock.state == LISTEN){
+            tcp_header syn_header; 
+            
+
             destSock.state = SYN_RCVD;
+            syn_header.src_port = srcPort;
+            syn_header.dest_port = destPort;
+            syn_header.flags = SYN;
+            syn_header.seq = 0;
+            syn_header.ack = 1;
+            syn_header.advert_window = 1;
+            msg->dest = msg->src;
+            msg->src = TOS_NODE_ID;
+            msg->seq = 0;
+            msg->TTL = MAX_TTL;
+            msg->protocol = PROTOCOL_TCP;
+            memcpy(msg->payload,&syn_header,TCP_PAYLOAD_SIZE);  
+            
         }
         
     }
