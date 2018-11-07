@@ -6,7 +6,7 @@ enum {
     TCP_PAYLOAD_SIZE = 20 - TCP_HEADER_SIZE,
 };
 
-enum {
+enum flags {
     SYN,
     ACK,
     FIN,

@@ -152,6 +152,13 @@ implementation{
     }
 
     /**
+     * Sends TCP packet through the routing handler
+     */
+    event void TCPHandler.route(pack* msg) {
+        call RoutingHandler.send(msg);
+    }
+
+    /**
      * Called when simulation issues a ping command to the node
      */
     event void CommandHandler.ping(uint16_t destination, uint8_t *payload){
