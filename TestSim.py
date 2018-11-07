@@ -133,7 +133,7 @@ class TestSim:
         self.t.addChannel(channelName, out)
     
     def testServer(self, address, port):
-        self.sendCMD(self.CMD_TEST_SERVER, address, "{0}".format(port))
+        self.sendCMD(self.CMD_TEST_SERVER, address, "{0}".format(chr(port)))
 
     def testClient(self, clientAddress, dest, srcPort, destPort, transfer):
         self.sendCMD(self.CMD_TEST_CLIENT, clientAddress, "{0}{1}{2}{3}".format(chr(dest), chr(srcPort), chr(destPort), chr(transfer)))

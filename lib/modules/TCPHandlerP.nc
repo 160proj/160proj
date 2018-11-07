@@ -77,16 +77,42 @@ implementation {
         uint16_t i;
 
         for (i = 0; i < size; i++) {
-            socket_store_t socket = call SocketMap.get(fds[i]);
+            socket_t socketFD = fds[i];
+            socket_store_t socket = call SocketMap.get(socketFD);
+
             if (socket.src == srcPort &&
                 socket.dest.port == destPort &&
                 socket.dest.addr == dest) {
-                    return (socket_t)fds[i];
-                }
+                    return socketFD;
+            }
         }
 
         dbg(TRANSPORT_CHANNEL, "Error: File descriptor not found for dest: %d, srcPort: %d, destPort: %d\n", dest, srcPort, destPort);
+        
+        
         return 0;
+    }
+
+    /**
+     * Called when a server recieves a syn packet
+     * 
+     */
+    void socketSyn(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
+        uint32_t* fds = call SocketMap.getKeys();
+        uint16_t size = call SocketMap.size();
+        uint16_t i;
+
+        for (i = 0; i < size; i++) {
+            socket_t socketFD = fds[i];
+            socket_store_t socket = call SocketMap.get(socketFD);
+
+            if (socket.src == srcPort && socket.state == LISTEN) {
+                socket.dest.addr = dest;
+                socket.dest.port = destPort;
+                updateSocket(socketFD, socket);
+            }
+        }
+
     }
 
     /**
@@ -199,7 +225,7 @@ implementation {
             dbg(TRANSPORT_CHANNEL, "Cannot create server at Port %d: Max num of sockets reached\n");
         }
 
-        socket.src = TOS_NODE_ID;
+        socket.src = port;
         socket.state = LISTEN;
 
         // TODO: Fill in the rest of the server socket stuff
@@ -221,13 +247,10 @@ implementation {
     command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort,
                                         uint16_t destPort, uint16_t transfer) {
         socket_store_t socket;
-        socket_addr_t destination;
-        socket.src = TOS_NODE_ID;
 
-        destination.port = destPort;
-        destination.addr = dest;
-        socket.dest = destination;
-
+        socket.src = srcPort;
+        socket.dest.port = destPort;
+        socket.dest.addr = dest;
         socket.state = CLOSED;
         socket.lastWritten = 0;
         socket.lastAck = 0;
@@ -281,8 +304,11 @@ implementation {
         // Retrieve TCP header from packet
         memcpy(&header, &(msg->payload), PACKET_MAX_PAYLOAD_SIZE);
 
-        // REVIEW: Possibly needs switched dest/src ports
-        socketFD = getFD(msg->dest, header.src_port, header.dest_port);
+        if (header.flag == SYN) {
+            socketSyn(msg->src, header.dest_port, header.src_port);
+        }
+
+        socketFD = getFD(msg->src, header.dest_port, header.src_port);
 
         if (!socketFD) {
             dbg(TRANSPORT_CHANNEL, "Error: No socket associated with message from Node %d\n", msg->src);
