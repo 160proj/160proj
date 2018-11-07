@@ -10,19 +10,26 @@ module TCPHandlerP {
 }
 
 implementation {
+    /* SECTION: Member Variables */
+
     socket_t next_fd = 1; /** Next open file descriptor to bind a socket to */
 
-    /* Prototypes */
-    void sendSyn(uint8_t dest, uint8_t srcPort, uint8_t destPort);
-    void sendAck(pack* original_message);
-    void sendFin(uint16_t dest, uint8_t srcPort, uint8_t destPort);
+    /* SECTION: Prototypes */
+
+    void sendSyn(socket_t socketFD);
+    void sendAck(socket_t socketFD, pack* original_message);
+    void sendFin(socket_t socketFD);
+
+    void send(socket_t socketFD, uint32_t transfer);
+    void write(socket_t socketFD, pack* msg);
 
     socket_t getNextFD();
     socket_t getFD(uint16_t dest, uint16_t srcPort, uint16_t destPort);
     void addSocket(socket_store_t socket);
     void updateState(socket_t socketFD, enum socket_state new_state);
+    void updateSocket(socket_t socketFD, socket_store_t new_socket);
 
-    void send(socket_t socketFD, uint32_t transfer);
+    /* SECTION: Private Functions */
 
     /**
      * Gets the next valid file descriptor for a socket.
@@ -112,6 +119,73 @@ implementation {
     }
 
     /**
+     * Updates the stored socket.
+     *
+     * @param socketFD the file descriptor for the socket to update.
+     * @param socket a socket containing the updated values.
+     */
+    void updateSocket(socket_t socketFD, socket_store_t new_socket) {
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "Error: invalid socket file descriptor for socket update\n");
+            return;
+        }
+        call SocketMap.insert(socketFD, new_socket);
+    }
+
+    /**
+     * Writes a packet to the send buffer.
+     * Drops the packet if the send buffer is full.
+     *
+     * @param socketFD the file descriptor for the socket.
+     * @param msg the packet to write.
+     */
+    void write(socket_t socketFD, pack* msg) {
+        // FIXME make it not instantly send at all times
+        // put the packet in the send buffer and send from that in order
+        socket_store_t socket;
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "Error: Invalid socket file descriptor when writing\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        socket.lastWritten++;
+        signal TCPHandler.route(msg);
+        socket.lastSent++;
+
+        updateSocket(socketFD, socket);
+    }
+
+    /**
+     * Starts a TCP connection through a socket and sends a series of bytes to the server.
+     * 
+     * @param socketFD the file descriptor for this connection's socket.
+     * @param transfer the number of bytes to send to the server w/ value: (0..transfer-1).
+     */
+    void send(socket_t socketFD, uint32_t transfer) {
+        socket_store_t socket;
+        
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "Error: Invalid socketFD in send.\n");
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        if (socket.state != CLOSED) {
+            dbg(TRANSPORT_CHANNEL, "Error: Send command recieved for an active socket: From %d to %d:%d\n", socket.src, 
+                                                                                                            socket.dest.addr,
+                                                                                                            socket.dest.port);
+        }
+
+        updateState(socketFD, SYN_SENT);
+        sendSyn(socketFD);
+    }
+
+    /* SECTION: Commands */
+
+    /**
      * Starts a 'server' TCP connection, waiting to recieve packets from the client.
      *
      * @param port the port to listen for connections on.
@@ -153,6 +227,9 @@ implementation {
         socket.dest = destination;
 
         socket.state = CLOSED;
+        socket.lastWritten = 0;
+        socket.lastAck = 0;
+        socket.lastSent = 0;
 
         // TODO: Fill in the rest of the client socket stuff
 
@@ -162,6 +239,7 @@ implementation {
         dbg(TRANSPORT_CHANNEL, "Transferring %d bytes to destination...\n", transfer);
 
         send(getFD(dest, srcPort, destPort), transfer);
+        // TODO: Actually send the bytes
     }
 
     /**
@@ -172,52 +250,17 @@ implementation {
      * @param destPort the server's port associated with the connection.
      */
     command void TCPHandler.closeClient(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
-        socket_t fd = getFD(dest, srcPort, destPort);
+        socket_t socketFD = getFD(dest, srcPort, destPort);
         dbg(TRANSPORT_CHANNEL, "Closing client on Port %d with destination %d: %d\n", srcPort, dest, destPort);
         
-        if (fd == 0) {
+        if (!socketFD) {
             dbg(TRANSPORT_CHANNEL, "Error: Cannot close client, socket not found\n");
         }
 
-        sendFin(dest, srcPort, destPort);
-        updateState(fd, CLOSED);
+        sendFin(socketFD);
+        updateState(socketFD, CLOSED);
         // Wait for the ack before removing
         // call SocketMap.remove(fd);
-    }
-
-    /**
-     * Starts a TCP connection through a socket and sends a series of bytes to the server.
-     * 
-     * @param socketFD the file descriptor for this connection's socket.
-     * @param transfer the number of bytes to send to the server w/ value: (0..transfer-1).
-     */
-    void send(socket_t socketFD, uint32_t transfer) {
-        socket_store_t socket;
-        
-        if (!socketFD) {
-            dbg(TRANSPORT_CHANNEL, "Error: Invalid socketFD in send.\n");
-        }
-
-        socket = call SocketMap.get(socketFD);
-
-        if (socket.state != CLOSED) {
-            dbg(TRANSPORT_CHANNEL, "Error: Send command recieved for an active socket: From %d to %d:%d\n", socket.src, 
-                                                                                                            socket.dest.addr,
-                                                                                                            socket.dest.port);
-        }
-
-        updateState(socketFD, SYN_SENT);
-        sendSyn(socket.dest.addr, socket.src, socket.dest.port);
-    }
-
-    event void SrcTimeout.fired(){
-        
-    }
-
-    command void TCPHandler.start() {
-        if (!call SrcTimeout.isRunning()) {
-            call SrcTimeout.startPeriodic(3000);
-        }
     }
 
     /**
@@ -228,6 +271,7 @@ implementation {
      * @param msg the TCP packet to process
      */
     command void TCPHandler.recieve(pack* msg) {
+        // FIXME: Instantly add msg into recieve buffer, more messages may be waiting
         socket_t socketFD;
         socket_store_t socket;
         tcp_header header;
@@ -235,7 +279,8 @@ implementation {
         // Retrieve TCP header from packet
         memcpy(&header, &(msg->payload), PACKET_MAX_PAYLOAD_SIZE);
 
-        socketFD = getFD(msg->dest, header.src_port, header.dest_port); // REVIEW: Possible needs switched dest/src ports
+        // REVIEW: Possibly needs switched dest/src ports
+        socketFD = getFD(msg->dest, header.src_port, header.dest_port);
 
         if (!socketFD) {
             dbg(TRANSPORT_CHANNEL, "Error: No socket associated with message from Node %d\n", msg->src);
@@ -244,12 +289,13 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
 
+        // TODO: Give this its own function?
         switch(socket.state) {
             case CLOSED:
                 // TODO: If FIN+ACK send final ACK, then delete socket from the map
                 break;
             case LISTEN:
-                // TODO: If SYN send SYN+ACK -> SYN_RCVD
+                // TODO: If SYN send SYN+ACK -> SYN_RCVD; set socket dest
                 break;
             case ESTABLISHED:
                 // TODO: If data/FIN -> send ack. If FIN -> CLOSED
@@ -265,89 +311,126 @@ implementation {
         }
     }
 
+    /* SECTION: Events */
+
+    // TODO: Remove or refactor
+    event void SrcTimeout.fired(){
+        
+    }
+
+    /*
+     * SECTION: Temp 
+     * TODO: Move to function section
+     */
+
+
     /**
      * Sends a syn packet to the destination.
      *
-     * @param dest the node ID to send the packet to.
-     * @param srcPort local port number associated with the sender.
-     * @param destPort remote port number for the reciever.
+     * @param socketFD the file descriptor for the socket
      */
-    void sendSyn(uint8_t dest, uint8_t srcPort, uint8_t destPort) {
+    void sendSyn(socket_t socketFD) {
+        socket_store_t socket;
         pack synPack;
         tcp_header syn_header;
                         
-        syn_header.src_port = srcPort;
-        syn_header.dest_port = destPort;
-        syn_header.flags = SYN;
-        syn_header.seq = 0; // TODO: Replace with socket stuff.
-        syn_header.advert_window = 1; // FIXME: effectiveWindow of the socket                                                          
+        if (!socketFD) {
+            dbg (TRANSPORT_CHANNEL, "Invalid socket file descriptor in sendSyn\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
         synPack.src = TOS_NODE_ID;
-        synPack.dest = dest;
+        synPack.dest = socket.dest.addr;
         synPack.seq = 0; // FIXME: Fix the whole sequence number thing
         synPack.TTL = MAX_TTL;
         synPack.protocol = PROTOCOL_TCP;
+
+        syn_header.src_port = socket.src;
+        syn_header.dest_port = socket.dest.port;
+        syn_header.flags = SYN;
+        syn_header.seq = socket.lastWritten + 1;
+        syn_header.advert_window = socket.effectiveWindow;
+
         memcpy(&synPack.payload,&syn_header,TCP_PAYLOAD_SIZE);
-        signal TCPHandler.route(&synPack);
+
+        write(socketFD, &synPack);
     }
 
     /**
-     * Sends an acknowledgement packet based on a recieved packet
+     * Sends an acknowledgement packet based on a recieved packet.
      *
-     * @param original_message the packet to be acknowledged
+     * @param socketFD the file descriptor for the socket.
+     * @param original_message the packet to be acknowledged.
      */
-    void sendAck(pack* original_message) {
+    void sendAck(socket_t socketFD, pack* original_message) {
+        socket_store_t socket;
         tcp_header originalHeader;
         pack ackPack;
         tcp_header ackHeader;
 
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "Error: Invalid socket file descriptor in sendAck\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
         // Retrieve the TCP header from the original message
         memcpy(&originalHeader, &(original_message->payload), PACKET_MAX_PAYLOAD_SIZE);
-    
+
         ackPack.src = TOS_NODE_ID;
-        ackPack.dest = original_message->src;
+        ackPack.dest = socket.dest.addr;
         ackPack.seq = 0; // FIXME: Fix the whole sequence number thing
         ackPack.TTL = MAX_TTL;
         ackPack.protocol = PROTOCOL_TCP;
 
         ackHeader.src_port = originalHeader.dest_port;
         ackHeader.dest_port = originalHeader.src_port;
-        ackHeader.seq = originalHeader.seq; // TODO: Replace with socket stuff.
-        ackHeader.ack = originalHeader.seq + 1; // TODO: Replace with socket stuff.
-        ackHeader.advert_window = 1; // FIXME: effectiveWindow of the socket
+        ackHeader.seq = socket.lastWritten + 1; // REVIEW: Maybe not the correct value
+        ackHeader.ack = socket.nextExpected;    // REVIEW: Maybe not the correct value
+        ackHeader.advert_window = socket.effectiveWindow;
         ackHeader.flags = ACK;
-        ackHeader.payload_size = 0;
 
         // Insert the ackHeader into the packet
         memcpy(&ackPack.payload, &ackHeader, PACKET_MAX_PAYLOAD_SIZE);
         
         signal TCPHandler.route(&ackPack);
-    }
+    }            
 
     /**
-     * Sends a fin packet to reciever 
-     * @param dest is where the packet should end up 
-     * @param srcPort is the port number of the source node
-     * @param destPort is the port number of the destination node
+     * Sends a fin packet to reciever
+     *
+     * @param socketFD the file descriptor for the socket.
      */
-    void sendFin(uint16_t dest, uint8_t srcPort, uint8_t destPort) {
-        pack fin_pack;
+    void sendFin(socket_t socketFD) {
+        socket_store_t socket; 
+        pack finPack;
         tcp_header fin_header;
 
-        fin_header.src_port = destPort;
-        fin_header.dest_port = srcPort;
-        fin_header.seq = 0; // TODO: Replace with... some stuff from socket.
-        fin_header.advert_window = 1; // FIXME: effectiveWindow of the socket
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "Error: Invalid socket file descriptor in sendFin\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        finPack.src = TOS_NODE_ID;
+        finPack.dest = socket.dest.addr;
+        finPack.seq = 0; // FIXME: Fix the whole sequence number thing
+        finPack.TTL = MAX_TTL;
+        finPack.protocol = PROTOCOL_TCP;
+
+        fin_header.src_port = socket.dest.port;
+        fin_header.dest_port = socket.src;
+        fin_header.seq = socket.lastWritten+1;
+        fin_header.advert_window = socket.effectiveWindow;
         fin_header.flags = FIN;
 
-        fin_pack.src = TOS_NODE_ID;
-        fin_pack.dest = dest;
-        fin_pack.seq = 0; // FIXME: Fix the whole sequence number thing
-        fin_pack.TTL = MAX_TTL;
-        fin_pack.protocol = PROTOCOL_TCP;
-
-        memcpy(&fin_pack.payload, &fin_header, PACKET_MAX_PAYLOAD_SIZE);
+        memcpy(&finPack.payload, &fin_header, PACKET_MAX_PAYLOAD_SIZE);
                                                                                                        
-        signal TCPHandler.route(&fin_pack);                 
+        write(socketFD, &finPack);                
     }    
 }
 
