@@ -13,6 +13,7 @@ implementation {
     /* SECTION: Member Variables */
 
     socket_t next_fd = 1; /** Next open file descriptor to bind a socket to */
+    uint16_t* node_seq; /** Pointer to node's sequence number */
 
     /* SECTION: Prototypes */
 
@@ -190,7 +191,7 @@ implementation {
      *
      * @param port the port to listen for connections on.
      */
-    command void TCPHandler.startServer(uint16_t port) {
+    command void TCPHandler.startServer(uint16_t port, uint16_t* seq) {
         uint16_t num_connections = call SocketMap.size();
         socket_store_t socket;
 
@@ -215,11 +216,13 @@ implementation {
      * @param srcPort the client port to send the packets from.
      * @param destPort the server port to send the packets to.
      * @param transfer the number of bytes to transfer w/ value: (0..transfer-1).
+     * @param pointer to node's sequence number
      */
-    command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort,
-                                        uint16_t destPort, uint16_t transfer) {
+    command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort, uint16_t destPort,
+                                        uint16_t transfer, uint16_t* seq) {
         socket_store_t socket;
         socket_addr_t destination;
+        seq = seq;
         socket.src = TOS_NODE_ID;
 
         destination.port = destPort;
@@ -293,8 +296,25 @@ implementation {
         switch(socket.state) {
             case CLOSED:
                 // TODO: If FIN+ACK send final ACK, then delete socket from the map
+                // if (header->flag == FIN){  
+                //     call sendSyn(socketFD);
+                //     socket.state = SYN_SENT;                                                                                    
+                // }
+
+                    //TODO: make condition run if client has reciebed both SYN and ACK packets
+                    //TODO: somehow write for both conditions to be accepted when client has recieved both
+                // if (header.flag == SYN) { 
+                //     call sendAck(msg, socketFD);
+                //     socket.state = ESTABLISHED;    
+                // }
+                          
                 break;
             case LISTEN:
+                if (header.flag == SYN){  
+                    sendSyn(socketFD);
+                    sendAck(socketFD, msg);
+                    socket.state = SYN_RCVD;
+                }
                 // TODO: If SYN send SYN+ACK -> SYN_RCVD; set socket dest
                 break;
             case ESTABLISHED:
@@ -305,6 +325,10 @@ implementation {
                 break;
             case SYN_RCVD:
                 // TODO: If ACK -> ESTABLISHED
+                // REVIEW: make sure this is actually how it works
+                if (header.flag == ACK) {
+                    updateState(socketFD, ESTABLISHED);
+                }
                 break;
             default:
                 dbg(TRANSPORT_CHANNEL, "Error: Invalid socket state %d\n", socket.state);
@@ -343,17 +367,17 @@ implementation {
 
         synPack.src = TOS_NODE_ID;
         synPack.dest = socket.dest.addr;
-        synPack.seq = 0; // FIXME: Fix the whole sequence number thing
+        synPack.seq = (*node_seq)++;
         synPack.TTL = MAX_TTL;
         synPack.protocol = PROTOCOL_TCP;
 
         syn_header.src_port = socket.src;
         syn_header.dest_port = socket.dest.port;
-        syn_header.flags = SYN;
+        syn_header.flag = SYN;
         syn_header.seq = socket.lastWritten + 1;
         syn_header.advert_window = socket.effectiveWindow;
 
-        memcpy(&synPack.payload,&syn_header,TCP_PAYLOAD_SIZE);
+        memcpy(&synPack.payload, &syn_header, TCP_PAYLOAD_SIZE);
 
         write(socketFD, &synPack);
     }
@@ -382,16 +406,16 @@ implementation {
 
         ackPack.src = TOS_NODE_ID;
         ackPack.dest = socket.dest.addr;
-        ackPack.seq = 0; // FIXME: Fix the whole sequence number thing
+        ackPack.seq = *(node_seq)++;
         ackPack.TTL = MAX_TTL;
         ackPack.protocol = PROTOCOL_TCP;
 
-        ackHeader.src_port = originalHeader.dest_port;
-        ackHeader.dest_port = originalHeader.src_port;
+        ackHeader.src_port = socket.src;
+        ackHeader.dest_port = socket.dest.port;
         ackHeader.seq = socket.lastWritten + 1; // REVIEW: Maybe not the correct value
         ackHeader.ack = socket.nextExpected;    // REVIEW: Maybe not the correct value
         ackHeader.advert_window = socket.effectiveWindow;
-        ackHeader.flags = ACK;
+        ackHeader.flag = ACK;
 
         // Insert the ackHeader into the packet
         memcpy(&ackPack.payload, &ackHeader, PACKET_MAX_PAYLOAD_SIZE);
@@ -418,19 +442,18 @@ implementation {
 
         finPack.src = TOS_NODE_ID;
         finPack.dest = socket.dest.addr;
-        finPack.seq = 0; // FIXME: Fix the whole sequence number thing
+        finPack.seq = *(node_seq)++;
         finPack.TTL = MAX_TTL;
         finPack.protocol = PROTOCOL_TCP;
 
         fin_header.src_port = socket.dest.port;
         fin_header.dest_port = socket.src;
-        fin_header.seq = socket.lastWritten+1;
+        fin_header.seq = socket.lastWritten + 1;
         fin_header.advert_window = socket.effectiveWindow;
-        fin_header.flags = FIN;
+        fin_header.flag = FIN;
 
         memcpy(&finPack.payload, &fin_header, PACKET_MAX_PAYLOAD_SIZE);
                                                                                                        
         write(socketFD, &finPack);                
     }    
 }
-

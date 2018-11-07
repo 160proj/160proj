@@ -21,6 +21,8 @@ implementation {
 
     uint16_t routesPerPacket = 1;
 
+    uint16_t* node_seq;
+
     /**
      * Generates a random 16-bit number between 'min' and 'max'
      */
@@ -199,7 +201,7 @@ implementation {
      * Initializes the routing process
      * Have to call updateNeighbors first
      */
-    command void RoutingHandler.start() {
+    command void RoutingHandler.start(uint16_t* seq) {
         if (call RoutingTable.size() == 0) {
             dbg(ROUTING_CHANNEL, "ERROR - Can't route with no neighbors! Make sure to updateNeighbors first.\n");
             return;
@@ -418,7 +420,7 @@ implementation {
         msg.src = TOS_NODE_ID;
         msg.TTL = 1;
         msg.protocol = PROTOCOL_DV;
-        msg.seq = 0; // NOTE: Change if requests are needed
+        msg.seq = *(node_seq)++;
 
         memset((&msg.payload), '\0', PACKET_MAX_PAYLOAD_SIZE);
 

@@ -19,7 +19,7 @@ typedef nx_struct tcp_header {
     nx_uint16_t seq;
     nx_uint16_t ack;
     nx_uint16_t advert_window;
-    nx_uint8_t flags;
+    nx_uint8_t flag;
     nx_uint8_t payload_size; // in bytes
     nx_uint8_t payload[TCP_PAYLOAD_SIZE];
 } tcp_header;

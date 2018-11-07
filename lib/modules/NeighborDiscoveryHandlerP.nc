@@ -9,6 +9,7 @@ module NeighborDiscoveryHandlerP {
 
 implementation {
     const uint16_t TIMEOUT_CYCLES = 5; // Number of missed replies before dropping a neighbor
+    uint16_t* node_seq;
 
     /**
      * Changes provided neighbor discovery packet into a neighbor discovery reply and sends it
@@ -65,11 +66,11 @@ implementation {
      * Creates packet used for neighbor discovery
      * Uses dest=AM_BROADCAST_ADDR as the method to detect a neighbor discovery packet
      */
-    void createNeighborPack(pack* neighborPack, uint16_t seq) {
+    void createNeighborPack(pack* neighborPack) {
         neighborPack->src = TOS_NODE_ID;
         neighborPack->dest = AM_BROADCAST_ADDR;
         neighborPack->TTL = 1;
-        neighborPack->seq = seq;
+        neighborPack->seq = *(node_seq)++;
         neighborPack->protocol = PROTOCOL_PING;
         memcpy(neighborPack->payload, "Neighbor Discovery\n", 19);
     }
@@ -77,10 +78,11 @@ implementation {
     /**
      * Sends out neighbor discovery packet with the sequence number passed to it
      */
-    command void NeighborDiscoveryHandler.discover(uint16_t seq) {
+    command void NeighborDiscoveryHandler.discover(uint16_t* seq) {
         pack neighborPack;
+        node_seq = seq;
         decrement_timeout();
-        createNeighborPack(&neighborPack, seq);
+        createNeighborPack(&neighborPack);
         call Sender.send(neighborPack, AM_BROADCAST_ADDR);
     }
 

@@ -113,9 +113,13 @@ implementation{
             // Distance Vector
             if (myMsg->protocol == PROTOCOL_DV) {
                 call RoutingHandler.recieve(myMsg);
+            
+            // TCP
+            } else if (myMsg->protocol == PROTOCOL_TCP && myMsg->dest == TOS_NODE_ID) {
+                call TCPHandler.recieve(myMsg);
 
             // Regular Ping
-            }else if (myMsg->dest == TOS_NODE_ID) {
+            } else if (myMsg->dest == TOS_NODE_ID) {
                 pingHandler(myMsg);
                 
             // Neighbor Discovery
@@ -137,7 +141,7 @@ implementation{
      * Neighbor discovery only needs the node's current sequence number
      */
     event void NeighborTimer.fired() {
-        call NeighborDiscoveryHandler.discover(current_seq++);
+        call NeighborDiscoveryHandler.discover(&current_seq);
     }
 
     /**
@@ -148,7 +152,7 @@ implementation{
         uint16_t numNeighbors = call NeighborDiscoveryHandler.numNeighbors();
 
         call RoutingHandler.updateNeighbors(neighbors, numNeighbors);
-        call RoutingHandler.start();
+        call RoutingHandler.start(&current_seq);
     }
 
     /**
@@ -196,7 +200,7 @@ implementation{
      */
     event void CommandHandler.setTestServer(uint16_t port) {
         dbg(GENERAL_CHANNEL, "TEST_SERVER EVENT\n");
-        call TCPHandler.startServer(port);
+        call TCPHandler.startServer(port, &current_seq);
     }
 
     /**
@@ -207,7 +211,7 @@ implementation{
     event void CommandHandler.setTestClient(uint16_t dest, uint16_t srcPort, 
                                             uint16_t destPort, uint16_t transfer) {
         dbg(GENERAL_CHANNEL, "TEST_CLIENT EVENT\n");
-        call TCPHandler.startClient(dest, srcPort, destPort, transfer);
+        call TCPHandler.startClient(dest, srcPort, destPort, transfer, &current_seq);
     }
 
     /**
