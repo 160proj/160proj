@@ -106,10 +106,13 @@ implementation {
             socket_t socketFD = fds[i];
             socket_store_t socket = call SocketMap.get(socketFD);
 
-            if (socket.src == srcPort && socket.state == LISTEN) {
-                socket.dest.addr = dest;
-                socket.dest.port = destPort;
-                updateSocket(socketFD, socket);
+            if (socket.src == srcPort &&
+                socket.state == LISTEN &&
+                socket.dest.addr == ROOT_SOCKET_ADDR &&
+                socket.dest.port == ROOT_SOCKET_PORT) {
+                    socket.dest.addr = dest;
+                    socket.dest.port = destPort;
+                    updateSocket(socketFD, socket);
             }
         }
 
@@ -227,8 +230,8 @@ implementation {
 
         socket.src = port;
         socket.state = LISTEN;
-
-        // TODO: Fill in the rest of the server socket stuff
+        socket.dest.addr = ROOT_SOCKET_ADDR;
+        socket.dest.port = ROOT_SOCKET_PORT; 
 
         addSocket(socket);
         dbg(TRANSPORT_CHANNEL, "Server started on Port %d\n", port);
