@@ -85,7 +85,7 @@ implementation {
                 }
         }
 
-        dbg(TRANSPORT_CHANNEL, "Error: File descriptor not found for dest: %d, srcPort: %d, destPort: %d", dest, srcPort, destPort);
+        dbg(TRANSPORT_CHANNEL, "Error: File descriptor not found for dest: %d, srcPort: %d, destPort: %d\n", dest, srcPort, destPort);
         return 0;
     }
 
@@ -191,7 +191,7 @@ implementation {
      *
      * @param port the port to listen for connections on.
      */
-    command void TCPHandler.startServer(uint16_t port, uint16_t* seq) {
+    command void TCPHandler.startServer(uint16_t port) {
         uint16_t num_connections = call SocketMap.size();
         socket_store_t socket;
 
@@ -218,11 +218,10 @@ implementation {
      * @param transfer the number of bytes to transfer w/ value: (0..transfer-1).
      * @param pointer to node's sequence number
      */
-    command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort, uint16_t destPort,
-                                        uint16_t transfer, uint16_t* seq) {
+    command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort,
+                                        uint16_t destPort, uint16_t transfer) {
         socket_store_t socket;
         socket_addr_t destination;
-        seq = seq;
         socket.src = TOS_NODE_ID;
 
         destination.port = destPort;
@@ -359,7 +358,7 @@ implementation {
         tcp_header syn_header;
                         
         if (!socketFD) {
-            dbg (TRANSPORT_CHANNEL, "Invalid socket file descriptor in sendSyn\n");
+            dbg (TRANSPORT_CHANNEL, "Error: Invalid socket file descriptor in sendSyn\n");
             return;
         }
 
@@ -367,7 +366,7 @@ implementation {
 
         synPack.src = TOS_NODE_ID;
         synPack.dest = socket.dest.addr;
-        synPack.seq = (*node_seq)++;
+        synPack.seq = signal TCPHandler.getSequence();
         synPack.TTL = MAX_TTL;
         synPack.protocol = PROTOCOL_TCP;
 
@@ -406,7 +405,7 @@ implementation {
 
         ackPack.src = TOS_NODE_ID;
         ackPack.dest = socket.dest.addr;
-        ackPack.seq = *(node_seq)++;
+        ackPack.seq = signal TCPHandler.getSequence();
         ackPack.TTL = MAX_TTL;
         ackPack.protocol = PROTOCOL_TCP;
 
@@ -442,7 +441,7 @@ implementation {
 
         finPack.src = TOS_NODE_ID;
         finPack.dest = socket.dest.addr;
-        finPack.seq = *(node_seq)++;
+        finPack.seq = signal TCPHandler.getSequence();
         finPack.TTL = MAX_TTL;
         finPack.protocol = PROTOCOL_TCP;
 

@@ -70,7 +70,7 @@ implementation {
         neighborPack->src = TOS_NODE_ID;
         neighborPack->dest = AM_BROADCAST_ADDR;
         neighborPack->TTL = 1;
-        neighborPack->seq = *(node_seq)++;
+        neighborPack->seq = signal NeighborDiscoveryHandler.getSequence();
         neighborPack->protocol = PROTOCOL_PING;
         memcpy(neighborPack->payload, "Neighbor Discovery\n", 19);
     }
@@ -78,9 +78,8 @@ implementation {
     /**
      * Sends out neighbor discovery packet with the sequence number passed to it
      */
-    command void NeighborDiscoveryHandler.discover(uint16_t* seq) {
+    command void NeighborDiscoveryHandler.discover() {
         pack neighborPack;
-        node_seq = seq;
         decrement_timeout();
         createNeighborPack(&neighborPack);
         call Sender.send(neighborPack, AM_BROADCAST_ADDR);

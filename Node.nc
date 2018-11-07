@@ -45,6 +45,7 @@ implementation{
     void makePack(pack *Package, uint16_t src, uint16_t dest, uint16_t TTL, uint16_t Protocol, uint16_t seq, uint8_t *payload, uint8_t length);
     void pingHandler(pack* msg);
     uint32_t randNum(uint32_t min, uint32_t max);
+    uint16_t getSequence();
 
     /**
      * Called when the node is started
@@ -141,7 +142,7 @@ implementation{
      * Neighbor discovery only needs the node's current sequence number
      */
     event void NeighborTimer.fired() {
-        call NeighborDiscoveryHandler.discover(&current_seq);
+        call NeighborDiscoveryHandler.discover();
     }
 
     /**
@@ -152,7 +153,7 @@ implementation{
         uint16_t numNeighbors = call NeighborDiscoveryHandler.numNeighbors();
 
         call RoutingHandler.updateNeighbors(neighbors, numNeighbors);
-        call RoutingHandler.start(&current_seq);
+        call RoutingHandler.start();
     }
 
     /**
@@ -160,6 +161,33 @@ implementation{
      */
     event void TCPHandler.route(pack* msg) {
         call RoutingHandler.send(msg);
+    }
+
+    /**
+     * Called when the neighbor discovery handler needs the sequence number for a packet
+     *
+     * @return the current sequence number
+     */
+    event uint16_t NeighborDiscoveryHandler.getSequence() {
+        return getSequence();
+    }
+
+    /**
+     * Called when the routing handler needs the sequence number for a packet
+     *
+     * @return the current sequence number
+     */
+    event uint16_t RoutingHandler.getSequence() {
+        return getSequence();
+    }
+
+    /**
+     * Called when the TCP handler needs the sequence number for a packet
+     *
+     * @return the current sequence number
+     */
+    event uint16_t TCPHandler.getSequence() {
+        return getSequence();
     }
 
     /**
@@ -200,7 +228,7 @@ implementation{
      */
     event void CommandHandler.setTestServer(uint16_t port) {
         dbg(GENERAL_CHANNEL, "TEST_SERVER EVENT\n");
-        call TCPHandler.startServer(port, &current_seq);
+        call TCPHandler.startServer(port);
     }
 
     /**
@@ -211,7 +239,7 @@ implementation{
     event void CommandHandler.setTestClient(uint16_t dest, uint16_t srcPort, 
                                             uint16_t destPort, uint16_t transfer) {
         dbg(GENERAL_CHANNEL, "TEST_CLIENT EVENT\n");
-        call TCPHandler.startClient(dest, srcPort, destPort, transfer, &current_seq);
+        call TCPHandler.startClient(dest, srcPort, destPort, transfer);
     }
 
     /**
@@ -244,5 +272,14 @@ implementation{
      */
     uint32_t randNum(uint32_t min, uint32_t max) {
         return ( call Random.rand16() % (max-min+1) ) + min;
+    }
+
+    /**
+     * Gets the current sequence number, automatically increments it
+     *
+     * @return the current sequence number
+     */
+    uint16_t getSequence() {
+        return current_seq++;
     }
 }
