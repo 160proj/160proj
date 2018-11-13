@@ -1,21 +1,17 @@
-#include "../../packet.h"
+#include <Timer.h>
 #include "../../includes/socket.h"
+#include "../../includes/packet.h"
+#include "../../includes/tcp_header.h"
 
-/**
- * The Transport interface handles sockets and is a layer of abstraction
- * above TCP. This will be used by the application layer to set up TCP
- * packets. Internally the system will be handling syn/ack/data/fin
- * Transport packets.
- *
- * @project
- *   Transmission Control Protocol
- * @author
- *      Alex Beltran - abeltran2@ucmerced.edu
- * @date
- *   2013/11/12
- */
+module TransportP {
+    provides interface Transport;
 
-interface Transport{
+    uses interface Timer<TMilli> as SrcTimeout;
+    uses interface Hashmap<socket_store_t> as SocketMap;
+}
+
+implementation {
+
    /**
     * Get a socket if there is one available.
     * @Side Client/Server
@@ -24,7 +20,9 @@ interface Transport{
     *    associated with a socket. If you are unable to allocated
     *    a socket then return a NULL socket_t.
     */
-   command socket_t socket();
+   command socket_t socket() {
+       
+   }
 
    /**
     * Bind a socket with an address.
@@ -38,7 +36,9 @@ interface Transport{
     * @return error_t - SUCCESS if you were able to bind this socket, FAIL
     *       if you were unable to bind.
     */
-   command error_t bind(socket_t fd, socket_addr_t *addr);
+   command error_t bind(socket_t fd, socket_addr_t *addr) {
+
+   }
 
    /**
     * Checks to see if there are socket connections to connect to and
@@ -52,7 +52,9 @@ interface Transport{
     *    a destination associated with the destination address and port.
     *    if not return a null socket.
     */
-   command socket_t accept(socket_t fd);
+   command socket_t accept(socket_t fd) {
+
+   }
 
    /**
     * Write to the socket from a buffer. This data will eventually be
@@ -69,7 +71,9 @@ interface Transport{
     * @return uint16_t - return the amount of data you are able to write
     *    from the pass buffer. This may be shorter then bufflen
     */
-   command uint16_t write(socket_t fd, uint8_t *buff, uint16_t bufflen);
+   command uint16_t write(socket_t fd, uint8_t *buff, uint16_t bufflen) {
+
+   }
 
    /**
     * This will pass the packet so you can handle it internally. 
@@ -79,7 +83,9 @@ interface Transport{
     * @return uint16_t - return SUCCESS if you are able to handle this
     *    packet or FAIL if there are errors.
     */
-   command error_t receive(pack* package);
+   command error_t receive(pack* package) {
+
+   }
 
    /**
     * Read from the socket and write this data to the buffer. This data
@@ -96,7 +102,9 @@ interface Transport{
     * @return uint16_t - return the amount of data you are able to read
     *    from the pass buffer. This may be shorter then bufflen
     */
-   command uint16_t read(socket_t fd, uint8_t *buff, uint16_t bufflen);
+   command uint16_t read(socket_t fd, uint8_t *buff, uint16_t bufflen) {
+
+   }
 
    /**
     * Attempts a connection to an address.
@@ -110,7 +118,9 @@ interface Transport{
     * @return socket_t - returns SUCCESS if you are able to attempt
     *    a connection with the fd passed, else return FAIL.
     */
-   command error_t connect(socket_t fd, socket_addr_t * addr);
+   command error_t connect(socket_t fd, socket_addr_t * addr) {
+
+   }
 
    /**
     * Closes the socket.
@@ -121,7 +131,9 @@ interface Transport{
     * @return socket_t - returns SUCCESS if you are able to attempt
     *    a closure with the fd passed, else return FAIL.
     */
-   command error_t close(socket_t fd);
+   command error_t close(socket_t fd) {
+
+   }
 
    /**
     * A hard close, which is not graceful. This portion is optional.
@@ -132,7 +144,9 @@ interface Transport{
     * @return socket_t - returns SUCCESS if you are able to attempt
     *    a closure with the fd passed, else return FAIL.
     */
-   command error_t release(socket_t fd);
+   command error_t release(socket_t fd) {
+
+   }
 
    /**
     * Listen to the socket and wait for a connection.
@@ -143,11 +157,7 @@ interface Transport{
     * @return error_t - returns SUCCESS if you are able change the state 
     *   to listen else FAIL.
     */
-   command error_t listen(socket_t fd);
+   command error_t listen(socket_t fd) {
 
-   /**
-    * Get the sequence number of the next packet from the node
-    * @return uint16_t - the sequence number for the next packet to send
-    */
-   event uint16_t getSequence();
+   }
 }
