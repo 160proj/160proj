@@ -32,8 +32,35 @@ typedef nx_struct pack{
  * 		pack *input = pack to be printed.
  */
 void logPack(pack *input){
-	dbg(GENERAL_CHANNEL, "Src: %hhu Dest: %hhu Seq: %hhu TTL: %hhu Protocol:%hhu  Payload: %s\n",
-	input->src, input->dest, input->seq, input->TTL, input->protocol, input->payload);
+	char* protocol = "";
+	switch (input->protocol) {
+		case PROTOCOL_PING:
+			protocol = "PING";
+			break;
+		case PROTOCOL_PINGREPLY:
+			protocol = "PINGREPLY";
+			break;
+		case PROTOCOL_LINKEDLIST:
+			protocol = "LINKEDLIST";
+			break;
+		case PROTOCOL_NAME:
+			protocol = "NAME";
+			break;
+		case PROTOCOL_TCP:
+			protocol = "TCP";
+			break;
+		case PROTOCOL_DV:
+			protocol = "DV";
+			break;
+		case PROTOCOL_CMD:
+			protocol = "CMD";
+			break;
+		default:
+			protocol = "UNKNOWN";
+	}
+
+	dbg(GENERAL_CHANNEL, "Src: %hhu Dest: %hhu Seq: %hhu TTL: %hhu Protocol: %s Payload: %s\n",
+	input->src, input->dest, input->seq, input->TTL, protocol, input->payload);
 }
 
 enum{

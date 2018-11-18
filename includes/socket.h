@@ -53,4 +53,34 @@ typedef struct socket_store_t{
     uint8_t effectiveWindow;
 }socket_store_t;
 
+void logSocket(socket_store_t* socket) {
+    char* state = "";
+    switch (socket->state) {
+        case CLOSED:
+            state = "CLOSED";
+            break;
+        case LISTEN:
+            state = "LISTEN";
+            break;
+        case ESTABLISHED:
+            state = "ESTABLISHED";
+            break;
+        case SYN_SENT:
+            state = "SYN_SENT";
+            break;
+        case SYN_RCVD:
+            state = "SYN_RCVD";
+            break;
+        default:
+            state = "UNKNOWN";
+    }
+
+    dbg(TRANSPORT_CHANNEL, "Flag: %hhu, State: %s, src: %hhu, dest_addr: %hu, dest_port: %hhu, RTT: %hu, effectiveWindow: %hhu\n",
+        socket->flag, state, socket->src, socket->dest.addr, socket->dest.port, socket->RTT, socket->effectiveWindow);
+    dbg(TRANSPORT_CHANNEL, "lastWritten:  %hhu, lastAck: %hhu, lastSent: %hhu\n",
+        socket->lastWritten, socket->lastAck, socket->lastSent);
+    dbg(TRANSPORT_CHANNEL, "lastRead: %hhu, lastRcvd: %hhu, nextExpected: %hhu\n",
+        socket->lastRead, socket->lastRcvd, socket->nextExpected);
+}
+
 #endif
