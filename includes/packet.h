@@ -10,8 +10,9 @@
 #include "channels.h"
 
 enum{
+	PACKET_SIZE = 28,
 	PACKET_HEADER_LENGTH = 8,
-	PACKET_MAX_PAYLOAD_SIZE = 28 - PACKET_HEADER_LENGTH,
+	PACKET_MAX_PAYLOAD_SIZE = PACKET_SIZE - PACKET_HEADER_LENGTH,
 	MAX_TTL = 15
 };
 
@@ -59,8 +60,14 @@ void logPack(pack *input){
 			protocol = "UNKNOWN";
 	}
 
-	dbg(GENERAL_CHANNEL, "Src: %hhu Dest: %hhu Seq: %hhu TTL: %hhu Protocol: %s Payload: %s\n",
-	input->src, input->dest, input->seq, input->TTL, protocol, input->payload);
+	if (input->protocol == PROTOCOL_TCP) {
+		dbg(GENERAL_CHANNEL, "Src: %hhu Dest: %hhu Seq: %hhu TTL: %hhu Protocol: %s\n",
+			input->src, input->dest, input->seq, input->TTL, protocol);
+	} else {
+		dbg(GENERAL_CHANNEL, "Src: %hhu Dest: %hhu Seq: %hhu TTL: %hhu Protocol: %s Payload: %s\n",
+			input->src, input->dest, input->seq, input->TTL, protocol, input->payload);
+	}
+	
 }
 
 enum{

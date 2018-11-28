@@ -4,11 +4,14 @@
 #include "../../includes/socket.h"
 #include "../../includes/packet.h"
 #include "../../includes/tcp_header.h"
+
 module TCPHandlerP {
     provides interface TCPHandler;
 
-    uses interface Timer<TMilli> as SrcTimeout;
+    uses interface Timer<TMilli> as PacketTimer;
     uses interface Hashmap<socket_store_t> as SocketMap;
+    uses interface List<socket_store_t> as ServerList;
+    uses interface List<pack> as CurrentMessages;
 }
 
 implementation {
@@ -22,10 +25,12 @@ implementation {
     void sendSyn(socket_t socketFD);
     void sendAck(socket_t socketFD, pack* original_message);
     void sendFin(socket_t socketFD);
+    void sendDat(socket_t socketFD, uint8_t* data, uint16_t size);
 
     void send(socket_t socketFD, uint32_t transfer);
     void write(socket_t socketFD, pack* msg);
-    void connect(socket_t socketFD, uint16_t dest, socket_port_t destPort);
+    void sendNext();
+    void sendNextFromSocket(socket_t socketFD);
 
     socket_t getNextFD();
     socket_t getFD(uint16_t dest, uint16_t srcPort, uint16_t destPort);
@@ -135,29 +140,23 @@ implementation {
      *
      * @return the socket for the new connection, or NULL if unsuccessful
      */
-    socket_t socketSyn(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
-        uint32_t* fds = call SocketMap.getKeys();
-        uint16_t size = call SocketMap.size();
+    socket_t connect(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
+        uint16_t size = call ServerList.size();
         uint16_t i;
 
         for (i = 0; i < size; i++) {
-            socket_t socketFD = fds[i];
-            socket_store_t socket = call SocketMap.get(socketFD);
+            socket_store_t socket = call ServerList.get(i);
 
-            if (socket.src == srcPort &&
-                socket.state == LISTEN &&
-                socket.dest.addr == ROOT_SOCKET_ADDR &&
-                socket.dest.port == ROOT_SOCKET_PORT) {
+            if (socket.src == srcPort) {
                     // Make copy of the server socket for the connection
                     socket_store_t new_socket = socket;
-                    new_socket.state = SYN_RCVD;
+                    new_socket.state = LISTEN;
                     new_socket.dest.addr = dest;
                     new_socket.dest.port = destPort;
                     return addSocket(new_socket);
             }
         }
 
-        dbg(TRANSPORT_CHANNEL, "[Error] socketSyn: Cannot find server socket\n");
         return 0;
     }
 
@@ -211,6 +210,117 @@ implementation {
     }
 
     /**
+     * Checks if an active conection matching the parameters exists.
+     *
+     * @param dest the destination address.
+     * @param srcPort the local port for the connection.
+     * @param destPort the remote port for the connection.
+     *
+     * @return true if the connection exists, false if it does not.
+     */
+    bool isActive(uint16_t dest, uint16_t srcPort, uint16_t destPort) {
+        uint32_t* fds = call SocketMap.getKeys();
+        uint16_t size = call SocketMap.size();
+        uint16_t i;
+
+        for (i = 0; i < size; i++) {
+            socket_store_t socket = call SocketMap.get(fds[i]);
+            if (socket.dest.addr == dest &&
+                socket.dest.port == destPort &&
+                socket.src == srcPort &&
+                socket.flag == TRUE) {
+                    return TRUE;
+                }
+        }
+
+        return FALSE;
+    }
+
+    /**
+     * Checks if a sequence number has been acknowledged.
+     *
+     * @param socketFD the file descripter for the socket.
+     * @param seq the sequence number to check.
+     *
+     * @return true if the sequence has been acked, false if it has not.
+     */
+    bool isAcked(socket_t socketFD, uint16_t seq) {
+        socket_store_t socket;
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] isAcked: Invalid file descriptor\n");
+            return FALSE;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        if (seq == 65535) { // SYN/FIN packets (special case in this implementation)
+            return socket.state == SYN_RCVD
+                || socket.state == ESTABLISHED
+                || socket.state == CLOSED;
+        }
+
+        if (socket.lastAck < socket.lastSent) { // Normal Case
+            return seq > socket.lastSent || seq <= socket.lastAck;
+        }
+        else { // Wraparound
+            return seq > socket.lastSent && seq <= socket.lastAck;
+        }
+    }
+
+    /**
+     * Checks if a sequence number has been read.
+     *
+     * @param socketFD the file descripter for the socket.
+     * @param seq the sequence number to check.
+     *
+     * @return true if the sequence has been read, false if it has not.
+     */
+    bool isRead(socket_t socketFD, uint16_t seq) {
+        socket_store_t socket;
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] isRead: Invalid file descriptor\n");
+            return FALSE;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        if (socket.lastRcvd < socket.lastRead) { // Normal Case
+            return seq >= socket.lastRead || seq < socket.lastRcvd;
+        }
+        else { // Wraparound
+            return seq >= socket.lastRead && seq < socket.lastRcvd;
+        }
+    }
+
+    /**
+     * Checks if a sequence number has been written.
+     *
+     * @param socketFD the file descripter for the socket.
+     * @param seq the sequence number to check.
+     *
+     * @return true if the sequence has been written, false if it has not.
+     */
+    bool isWritten(socket_t socketFD, uint16_t seq) {
+        socket_store_t socket;
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] isWritten: Invalid file descriptor\n");
+            return FALSE;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        if (socket.lastAck < socket.lastWritten) { // Normal Case
+            return seq >= socket.lastWritten || seq < socket.lastAck;
+        }
+        else { // Wraparound
+            return seq >= socket.lastWritten && seq < socket.lastAck;
+        }
+    }
+
+    /**
      * Writes a packet to the send buffer.
      * Drops the packet if the send buffer is full.
      *
@@ -229,40 +339,12 @@ implementation {
         
         socket = call SocketMap.get(socketFD);
 
-        socket.lastWritten++;
-        signal TCPHandler.route(msg);
-        socket.lastSent++;
+        call CurrentMessages.pushfrontdrop(*msg);
+        sendNextFromSocket(socketFD);
         //  TODO store the messages here (somehow do memcpy from the message and store it into the send Buffer)
         // memcpy(socket.sendBuff,&msg,128);                
 
         updateSocket(socketFD, socket);
-    }
-
-    /**
-     * Starts a TCP connection through a socket and sends a series of bytes to the server.
-     * 
-     * @param socketFD the file descriptor for this connection's socket.
-     * @param transfer the number of bytes to send to the server w/ value: (0..transfer-1).
-     */
-    void send(socket_t socketFD, uint32_t transfer) {
-        socket_store_t socket;
-        
-        if (!socketFD) {
-            dbg(TRANSPORT_CHANNEL, "[Error] send: Invalid file descriptor\n");
-            return;
-        }
-
-        socket = call SocketMap.get(socketFD);
-
-        if (socket.state != CLOSED) {
-            dbg(TRANSPORT_CHANNEL, "[Error] send: Command recieved for an active socket: From %hhu to %hu:%hhu\n", socket.src, 
-                                                                                                                   socket.dest.addr,
-                                                                                                                   socket.dest.port);
-            return;
-        }
-
-        updateState(socketFD, SYN_SENT);
-        sendSyn(socketFD);
     }
 
     /**
@@ -313,48 +395,101 @@ implementation {
     }
 
     /**
-     * Attempts to connect to the server
-     *
-     * @param serverFD the server to connect to
-     * @param dest the address of the client
-     * @param destPort the port of the client
+     * Prints the contents of a packet's payload
      */
-    void connect(socket_t serverFD, uint16_t dest, socket_port_t destPort) {
+    void printUnread(socket_t socketFD) {
         socket_store_t socket;
-        if (!serverFD) {
-            dbg(TRANSPORT_CHANNEL, "[Error] connect: Invalid server file descriptor\n");
-            return;                                                    
+        uint16_t i;
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] printPayload: Invalid file descriptor\n");
         }
 
-        socket = call SocketMap.get(serverFD);        
+        for (i = socket.lastRead+1; i != socket.lastRcvd; i++) {
+            if (i >= SOCKET_BUFFER_SIZE) {
+                i = 0;
+            }
+
+            if (!isRead(socketFD, i)) {
+                dbg(GENERAL_CHANNEL, "%d, ", socket.rcvdBuff[i]);
+                socket.lastRead = i;
+                updateSocket(socketFD, socket);
+            }
+        }
     }
 
     /**
-     * Checks if an ACK packet has been acked already
-     *
-     * @param socketFD the file descriptor of the connection's socket
-     * @param header the TCP header from the packet
-     *
-     * @return true if packet has been acked, false if the packet has not been acked
+     * Sends the next packet in the CurrentMessages.
      */
-    bool checkAck(socket_t socketFD, tcp_header header) {
+    void sendNext() {
+        pack packet;
+        tcp_header header;
         socket_store_t socket;
+        socket_t socketFD;
+
+        if (!call CurrentMessages.isEmpty()) {
+            return;
+        }
+
+        packet = call CurrentMessages.front();
+        memcpy(&header, &packet.payload, PACKET_MAX_PAYLOAD_SIZE);
+
+        socketFD = getFD(packet.dest, header.src_port, header.dest_port);
 
         if (!socketFD) {
-            dbg(TRANSPORT_CHANNEL, "[Error] checkAck: Invalid file descriptor\n");
-            return FALSE;
+            dbg(TRANSPORT_CHANNEL, "[Error] sendNext: Invalid file descriptor\n");
+            return;
         }
 
         socket = call SocketMap.get(socketFD);
 
-        // Regular
-        if (socket.lastSent > socket.lastAck) {
-            return header.seq < socket.lastAck && header.seq > socket.lastSent;
-        // Wraparound
-        } else {
-            return header.seq > socket.lastAck && header.seq < socket.lastSent;
+        signal TCPHandler.route(&packet);
+        call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
+    }
+
+    /**
+     * Sends the next data packet for the socket.
+     *
+     * @param socketFD the file descriptor for the socket.
+     */
+    void sendNextFromSocket(socket_t socketFD) {
+        pack packet;
+        tcp_header header;
+        socket_store_t socket;
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] sendNextFromSocket: Invalid file descriptor\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        packet = call CurrentMessages.front();
+        memcpy(&header, &packet.payload, PACKET_MAX_PAYLOAD_SIZE);
+
+        signal TCPHandler.route(&packet);
+        call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
+    }
+
+    /**
+     * Removes the message corresponding to t
+     */
+    void removeAck(tcp_header ack_header) {
+        uint16_t i;
+        uint16_t size = call CurrentMessages.size();
+
+        for (i = 0; i < size; i++) {
+            pack tempPack = call CurrentMessages.get(i);
+            tcp_header tempHeader;
+            memcpy(&tempHeader, &tempPack.payload, PACKET_MAX_PAYLOAD_SIZE);
+
+            if (tempHeader.seq == ack_header.seq &&
+                tempHeader.dest_port == ack_header.src_port) {
+                    call CurrentMessages.remove(i);
+                    return;
+            }
         }
     }
+    
 
     /* SECTION: Commands */
 
@@ -368,7 +503,7 @@ implementation {
         socket_store_t socket;
 
         if (num_connections == MAX_NUM_OF_SOCKETS) {
-            dbg(TRANSPORT_CHANNEL, "Cannot create server at Port %hhu: Max num of sockets reached\n", port);
+            dbg(TRANSPORT_CHANNEL, "[Error] startServer: Cannot create server at Port %hhu: Max num of sockets reached\n", port);
         }
 
         socket.src = port;
@@ -376,8 +511,10 @@ implementation {
         socket.dest.addr = ROOT_SOCKET_ADDR;
         socket.dest.port = ROOT_SOCKET_PORT;
         socket.effectiveWindow = 1;
+        socket.flag = FALSE;
+        socket.RTT = 15000;
 
-        addSocket(socket);
+        call ServerList.pushbackdrop(socket);
         dbg(TRANSPORT_CHANNEL, "Server started on Port %hhu\n", port);
         // TODO: Figure out what the pdf means starting with the 'startTimer' line
         // fired() function that takes in 3 seconds and it 
@@ -399,21 +536,17 @@ implementation {
         socket.src = srcPort;
         socket.dest.port = destPort;
         socket.dest.addr = dest;
-        socket.state = CLOSED;
+        socket.state = SYN_SENT;
         socket.lastWritten = 0;
         socket.lastAck = 0;
         socket.lastSent = 0;
         socket.effectiveWindow = 1;
+        socket.RTT = 15000;
 
-        // TODO: Fill in the rest of the client socket stuff
-
-        addSocket(socket);
+        sendSyn(addSocket(socket));
 
         dbg(TRANSPORT_CHANNEL, "Client started on Port %hhu with destination %hu: %hhu\n", srcPort, dest, destPort);
         dbg(TRANSPORT_CHANNEL, "Transferring %hu bytes to destination...\n", transfer);
-
-        send(getFD(dest, srcPort, destPort), transfer);
-        // TODO: Actually send the bytes
     }
 
     /**
@@ -457,7 +590,7 @@ implementation {
         memcpy(&header, &(msg->payload), PACKET_MAX_PAYLOAD_SIZE);
 
         if (header.flag == SYN) {
-            socketSyn(msg->src, header.dest_port, header.src_port);
+            connect(msg->src, header.dest_port, header.src_port);
         }
 
         socketFD = getFD(msg->src, header.dest_port, header.src_port);
@@ -469,11 +602,14 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
 
-        dbg(TRANSPORT_CHANNEL, "TCP Packet recieved:\n");
-        logPack(msg);
-        logHeader(&header);
-        dbg(TRANSPORT_CHANNEL, "Socket:\n");
-        logSocket(&socket);
+        if(header.flag != DAT) {
+            dbg(TRANSPORT_CHANNEL, "--- TCP Packet recieved ---\n");
+            logPack(msg);
+            logHeader(&header);
+            dbg(TRANSPORT_CHANNEL, "--------- Socket ----------\n");
+            logSocket(&socket);
+            dbg(TRANSPORT_CHANNEL, "---------------------------\n\n");
+        }
 
         // TODO: Give this its own function?
         switch(socket.state) {
@@ -488,19 +624,27 @@ implementation {
                 if (header.flag == SYN){  
                     sendSyn(socketFD);
                     sendAck(socketFD, msg);
-                    socketSyn(socketFD, msg->src, header.src_port);
+                    updateState(socketFD, SYN_RCVD);
                 }
                 break;
 
             case ESTABLISHED:
                 if (header.flag == DAT) {
                     sendAck(socketFD, msg);
-                    // TODO: Process data
+                    memcpy(&socket.rcvdBuff+socket.lastRead+1, &header.payload, header.payload_size);
+                    socket.lastWritten = socket.lastRead + header.payload_size;
+                    // FIXME: Fix the wraparound issue
+                    updateSocket(socketFD, socket);
+                    printUnread(socketFD);
                 }
-                if (header.flag == ACK) {
-                    // TODO: Update ack values
+                else if (header.flag == ACK) {
+                    call PacketTimer.stop();
+                    removeAck(header);
+                    // TODO: Update RTT
+                    socket.nextExpected = header.seq+1;
+                    sendNextFromSocket(socketFD);
                 }
-                if (header.flag == FIN) {
+                else if (header.flag == FIN) {
                     sendAck(socketFD, msg);
                     sendFin(socketFD);
                     updateState(socketFD, CLOSED);
@@ -510,6 +654,9 @@ implementation {
             case SYN_SENT:
                 if (header.flag == ACK) {
                     updateState(socketFD, ESTABLISHED);
+                    call PacketTimer.stop();
+                    removeAck(header);
+                    // TODO: Update RTT
                 }
                 else if (header.flag == SYN) {
                     sendAck(socketFD, msg);
@@ -522,6 +669,9 @@ implementation {
             case SYN_RCVD:
                 if (header.flag == ACK) {   
                     updateState(socketFD, ESTABLISHED);
+                    call PacketTimer.stop();
+                    removeAck(header);
+                    // TODO: Update RTT
                 }
                 else {
                     dbg(TRANSPORT_CHANNEL, "[Error] recieve: Invalid packet type for SYN_RCVD state\n");
@@ -536,10 +686,56 @@ implementation {
 
     /* SECTION: Events */
 
-    // TODO: Remove or refactor
-    // event void SrcTimeout.fired(){
-        
-    // }
+    /**
+     * Timeout on packet acks.
+     * Fires if a packet has not recieved an ack by its timeout.
+     */
+    event void PacketTimer.fired(){
+        pack packet;
+        tcp_header header;
+        socket_store_t socket;
+        socket_t socketFD;
+
+        if (!call CurrentMessages.isEmpty()) {
+            return;
+        }
+
+        packet = call CurrentMessages.front();
+        memcpy(&header, &packet.payload, PACKET_MAX_PAYLOAD_SIZE);
+
+        socketFD = getFD(packet.dest, header.src_port, header.dest_port);
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] PacketTimer.fired: Invalid file descriptor\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        // Packed was acked, send the next one
+        while(isAcked(socketFD, header.seq)) {
+            call CurrentMessages.remove(0);
+            if (call CurrentMessages.isEmpty()) {
+                return;
+            }
+            packet = call CurrentMessages.front();
+            
+            memcpy(&header, &packet.payload, PACKET_MAX_PAYLOAD_SIZE);
+            socketFD = getFD(packet.dest, header.src_port, header.dest_port);
+
+            if (!socketFD) {
+                dbg(TRANSPORT_CHANNEL, "[Error] PacketTimer.fired: Invalid file descriptor\n");
+                return;
+            }  
+
+            socket = call SocketMap.get(socketFD);          
+        }
+
+        if (!call CurrentMessages.isEmpty()) {
+            signal TCPHandler.route(&packet);
+            call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
+        }
+    }
 
     /*
      * SECTION: Temp 
@@ -573,7 +769,7 @@ implementation {
         syn_header.src_port = socket.src;
         syn_header.dest_port = socket.dest.port;
         syn_header.flag = SYN;
-        syn_header.seq = socket.lastWritten + 1;
+        syn_header.seq = 65535;
         syn_header.advert_window = socket.effectiveWindow;
 
         memcpy(&synPack.payload, &syn_header, TCP_PAYLOAD_SIZE);
@@ -611,7 +807,7 @@ implementation {
 
         ackHeader.src_port = socket.src;
         ackHeader.dest_port = socket.dest.port;
-        ackHeader.seq = socket.nextExpected; // REVIEW: Maybe not the correct value
+        ackHeader.seq = originalHeader.seq; // REVIEW: Maybe not the correct value
         ackHeader.advert_window = socket.effectiveWindow;
         ackHeader.flag = ACK;
 
@@ -644,17 +840,50 @@ implementation {
         finPack.TTL = MAX_TTL;
         finPack.protocol = PROTOCOL_TCP;
 
-        fin_header.src_port = socket.dest.port;
-        fin_header.dest_port = socket.src;
-        fin_header.seq = socket.lastWritten + 1;
+        fin_header.src_port = socket.src;
+        fin_header.dest_port = socket.dest.port;
+        fin_header.seq = 65535;
         fin_header.advert_window = socket.effectiveWindow;
         fin_header.flag = FIN;
 
         memcpy(&finPack.payload, &fin_header, PACKET_MAX_PAYLOAD_SIZE);
                                                                                                        
         write(socketFD, &finPack);                
-    }    
+    }
 
-    /** NOTE: Temp function so it compiles */
-    event void SrcTimeout.fired() {}
+    /**
+     * Sends a data packet to the destination.
+     *
+     * @param socketFD the file descriptor for the socket.
+     */
+    void sendDat(socket_t socketFD, uint8_t* data, uint16_t size) {
+        socket_store_t socket;
+        pack datPack;
+        tcp_header dat_header;
+                        
+        if (!socketFD) {
+            dbg (TRANSPORT_CHANNEL, "[Error] sendDat: Invalid file descriptor\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        datPack.src = TOS_NODE_ID;
+        datPack.dest = socket.dest.addr;
+        datPack.seq = signal TCPHandler.getSequence();
+        datPack.TTL = MAX_TTL;
+        datPack.protocol = PROTOCOL_TCP;
+
+        dat_header.src_port = socket.src;
+        dat_header.dest_port = socket.dest.port;
+        dat_header.flag = SYN;
+        dat_header.seq = socket.nextExpected;
+        dat_header.advert_window = socket.effectiveWindow;
+
+        memcpy(&dat_header.payload, data, size);
+
+        memcpy(&datPack.payload, &dat_header, TCP_PAYLOAD_SIZE);
+
+        write(socketFD, &datPack);
+    } 
 }

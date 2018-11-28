@@ -79,7 +79,7 @@ implementation{
                 break;
 
             case CMD_CLOSE_CLIENT:
-                dbg(COMMAND_CHANNEL, "Command Type: Clost Client");
+                dbg(COMMAND_CHANNEL, "Command Type: Close Client\n");
                 signal CommandHandler.closeClient(buff[0], buff[1], buff[2]);
                 break;
 

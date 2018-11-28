@@ -8,7 +8,7 @@ def main():
     s.runTime(1)
 
     # Load the the layout of the network.
-    s.loadTopo("long_line.topo")
+    s.loadTopo("example.topo")
 
     # Add a noise model to all of the motes.
     s.loadNoise("no_noise.txt")
@@ -24,15 +24,17 @@ def main():
     # Regular let all the routing tables settle
     s.runTime(100)
 
-    s.testServer(address=10, port=33)
+    s.testServer(address=9, port=33)
 
     s.runTime(5)
     
-    s.testClient(clientAddress=2, dest=10, srcPort=20, destPort=33, transfer=30)
+    s.testClient(clientAddress=2, dest=9, srcPort=20, destPort=33, transfer=30)
 
     s.runTime(10)
 
-    s.closeClient(clientAddress=2, dest=10, srcPort=20, destPort=33)
+    s.closeClient(clientAddress=2, dest=9, srcPort=20, destPort=33)
+    
+    s.runTime(10)
     
     
 if __name__ == '__main__':
