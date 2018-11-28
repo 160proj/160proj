@@ -504,6 +504,8 @@ implementation {
 
         signal TCPHandler.route(&packet);
         call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
+        // sendDat(socket,paccket,PACKET_MAX_PAYLOAD_SIZE);
+
     }
 
     /**
@@ -700,7 +702,7 @@ implementation {
                     updateState(socketFD, ESTABLISHED);
                     call PacketTimer.stop();
                     removeAck(header);
-                    // sendNextData(socketFD);
+                    sendNextData(socketFD);
                     // TODO: Update RTT
                 }
                 else if (header.flag == SYN) {
