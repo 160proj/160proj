@@ -19,6 +19,7 @@ implementation {
 
     socket_t next_fd = 1; /** Next open file descriptor to bind a socket to */
     uint16_t* node_seq; /** Pointer to node's sequence number */
+    const uint16_t default_rtt = 1500; /** The default RTT for the sockets */
 
     /* SECTION: Prototypes */
 
@@ -349,22 +350,31 @@ implementation {
 
     /**
      * Fills the send buffer with the bytes to send
+     * Will resume filling if all bytes did not fit.
+     *
+     * @param socketFD the file descriptor for the socket.
+     * @param transfer the number of bytes to send with values (0..transfer-1)
+     *
+     * @return the number of bytes of 'transfer' were able to fit into the buffer.
      */
     uint32_t fill(socket_t socketFD, uint32_t transfer) {
         socket_store_t socket;
         uint8_t start;
         uint8_t end;
         uint32_t i;
+
         if (!socketFD) {
             dbg(TRANSPORT_CHANNEL, "[Error] fill: Invalid file descriptor\n");
-            return (uint32_t)NULL;
+            return 0;
         }
 
         socket = call SocketMap.get(socketFD);
 
         start = socket.lastSent + 1;
         end = socket.lastAck - 1;
-
+        if (transfer == 0) {
+            transfer = socket.flag + socket.sendBuff[start-1];
+        }
         // Bound the start value
         if (start >= SOCKET_BUFFER_SIZE) {
             start = 0;
@@ -375,7 +385,7 @@ implementation {
             end = SOCKET_BUFFER_SIZE;
         }
 
-        for (i = 0; i < transfer; i++) {
+        for (i = 0; i < transfer-socket.flag; i++) {
             uint8_t offset = start+i;
 
             // Make sure the offset wraps around
@@ -392,6 +402,8 @@ implementation {
                 return i;
             }
         }
+
+        return 0;
     }
 
     /**
@@ -447,7 +459,7 @@ implementation {
     }
 
     /**
-     * Sends the next data packet for the socket.
+     * Sends the next packet for the socket.
      *
      * @param socketFD the file descriptor for the socket.
      */
@@ -471,7 +483,33 @@ implementation {
     }
 
     /**
-     * Removes the message corresponding to t
+     * Sends the next data packet for the socket.
+     *
+     * @param socketFD the file descriptor for the socket.
+     */
+    void sendNextData(socket_t socketFD) {
+        pack packet;
+        tcp_header header;
+        socket_store_t socket;
+
+        if (!socketFD) {
+            dbg(TRANSPORT_CHANNEL, "[Error] sendNextFromSocket: Invalid file descriptor\n");
+            return;
+        }
+
+        socket = call SocketMap.get(socketFD);
+
+        packet = call CurrentMessages.front();
+        memcpy(&header, &packet.payload, PACKET_MAX_PAYLOAD_SIZE);
+
+        signal TCPHandler.route(&packet);
+        call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
+    }
+
+    /**
+     * Removes the message corresponding to the header
+     *
+     * @param ack_header the header for the received ack packet.
      */
     void removeAck(tcp_header ack_header) {
         uint16_t i;
@@ -511,8 +549,8 @@ implementation {
         socket.dest.addr = ROOT_SOCKET_ADDR;
         socket.dest.port = ROOT_SOCKET_PORT;
         socket.effectiveWindow = 1;
-        socket.flag = FALSE;
-        socket.RTT = 15000;
+        socket.flag = 0;
+        socket.RTT = default_rtt;
 
         call ServerList.pushbackdrop(socket);
         dbg(TRANSPORT_CHANNEL, "Server started on Port %hhu\n", port);
@@ -532,18 +570,23 @@ implementation {
     command void TCPHandler.startClient(uint16_t dest, uint16_t srcPort,
                                         uint16_t destPort, uint16_t transfer) {
         socket_store_t socket;
+        socket_t socketFD;
 
         socket.src = srcPort;
         socket.dest.port = destPort;
         socket.dest.addr = dest;
         socket.state = SYN_SENT;
-        socket.lastWritten = 0;
-        socket.lastAck = 0;
-        socket.lastSent = 0;
+        socket.lastWritten = SOCKET_BUFFER_SIZE;
+        socket.lastAck = SOCKET_BUFFER_SIZE;
+        socket.lastSent = SOCKET_BUFFER_SIZE;
         socket.effectiveWindow = 1;
-        socket.RTT = 15000;
+        socket.RTT = default_rtt;
+        memset(socket.sendBuff, '\0', SOCKET_BUFFER_SIZE);
 
-        sendSyn(addSocket(socket));
+        socketFD = addSocket(socket);
+        socket.flag = fill(socketFD, transfer);
+        updateSocket(socketFD, socket);
+        sendSyn(socketFD);
 
         dbg(TRANSPORT_CHANNEL, "Client started on Port %hhu with destination %hu: %hhu\n", srcPort, dest, destPort);
         dbg(TRANSPORT_CHANNEL, "Transferring %hu bytes to destination...\n", transfer);
@@ -641,8 +684,9 @@ implementation {
                     call PacketTimer.stop();
                     removeAck(header);
                     // TODO: Update RTT
+                    fill(socketFD, 0);
                     socket.nextExpected = header.seq+1;
-                    sendNextFromSocket(socketFD);
+                    sendNextData(socketFD);
                 }
                 else if (header.flag == FIN) {
                     sendAck(socketFD, msg);
@@ -656,6 +700,7 @@ implementation {
                     updateState(socketFD, ESTABLISHED);
                     call PacketTimer.stop();
                     removeAck(header);
+                    // sendNextData(socketFD);
                     // TODO: Update RTT
                 }
                 else if (header.flag == SYN) {
