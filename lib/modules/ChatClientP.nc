@@ -19,19 +19,19 @@ implementation  {
        //FIXME: dbg(GENERAL_CHANNEL, "hello %hhu%d\r\n", TOS_NODE_ID, socket.srcPort); //should print hello "[username][clientport]"
     }
 
-    command void ChatClient.Broadcast(pack myMsg, socket_t socket){
+    command void ChatClient.Broadcast(pack myMsg){
         //FIXME: parameters should be maybe a packet and socket type?
 
 
-        //FIXME: dbg(GENERAL_CHANNEL, "msg \r\n", ); // should display msg contents with packet pointer to payload
+        //FIXME: dbg(GENERAL_CHANNEL, "msg \r\n", myMsg.payload ); // should display msg contents with packet  to payload
     }
 
-    command void ChatClient.Whisper(){
-        socket_store_t socket;
+    command void ChatClient.Whisper(pack myMsg){
+        
         //FIXME: shoudl send messges directly to a certain user
-        // TODO: so with the knowledge of knowing your neighbors you can diractly send a message to the user  
+        // TODO: so with the knowledge of knowing your neighbors you can directly send a message to the user  
 
-        //FIXME: dbg(GENERAL_CHANNEL, "whisper \r\n", ); // should display [username][message] so 
+        //FIXME: dbg(GENERAL_CHANNEL, "whisper %d\r\n", TOS_NODE_ID, myMsg.payload ); // should display [username][message] so 
     }
 
     command void ChatClient.PrintUsr(){
