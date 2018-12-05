@@ -373,9 +373,9 @@ implementation {
             }
         }
 
-        for (i = 0; i < SOCKET_BUFFER_SIZE; i++) {
-            dbg(TRANSPORT_CHANNEL, "Item %hhu: %hhu\n", i, socket->sendBuff[i]);
-        }
+        // for (i = 0; i < SOCKET_BUFFER_SIZE; i++) {
+        //     dbg(TRANSPORT_CHANNEL, "Item %hhu: %hhu\n", i, socket->sendBuff[i]);
+        // }
 
         return 0;
     }
@@ -455,6 +455,9 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
         
+        if (socket.lastWritten == socket.lastSent) {
+            return;
+        }
 
         if (socket.lastSent == SOCKET_BUFFER_SIZE) {
             socket.lastSent = 1;
@@ -476,17 +479,17 @@ implementation {
             }
         }
 
-        dbg(TRANSPORT_CHANNEL, "Tempbuff:\n");
-        for (i = 0; i < TCP_PAYLOAD_SIZE; i++) {
-            dbg(TRANSPORT_CHANNEL, "%hhu\n", temp_buffer[i]);
-        }
+        // dbg(TRANSPORT_CHANNEL, "Tempbuff:\n");
+        // for (i = 0; i < TCP_PAYLOAD_SIZE; i++) {
+        //     dbg(TRANSPORT_CHANNEL, "%hhu\n", temp_buffer[i]);
+        // }
 
-        dbg(TRANSPORT_CHANNEL, "Sendbuff:\n");
-        for (i = 0; i < SOCKET_BUFFER_SIZE; i+= 8) {
-            dbg(TRANSPORT_CHANNEL, "%hhu, %hhu, %hhu, %hhu, %hhu, %hhu, %hhu, %hhu\n", 
-                socket.sendBuff[i], socket.sendBuff[i+1], socket.sendBuff[i+2], socket.sendBuff[i+3],
-                socket.sendBuff[i+4], socket.sendBuff[i+5], socket.sendBuff[i+6], socket.sendBuff[i+7]);
-        }
+        // dbg(TRANSPORT_CHANNEL, "Sendbuff:\n");
+        // for (i = 0; i < SOCKET_BUFFER_SIZE; i+= 8) {
+        //     dbg(TRANSPORT_CHANNEL, "%hhu, %hhu, %hhu, %hhu, %hhu, %hhu, %hhu, %hhu\n", 
+        //         socket.sendBuff[i], socket.sendBuff[i+1], socket.sendBuff[i+2], socket.sendBuff[i+3],
+        //         socket.sendBuff[i+4], socket.sendBuff[i+5], socket.sendBuff[i+6], socket.sendBuff[i+7]);
+        // }
 
         sendDat(socketFD, temp_buffer, TCP_PAYLOAD_SIZE);
         call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
