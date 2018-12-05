@@ -12,7 +12,9 @@ module TCPHandlerP {
     uses interface Hashmap<socket_store_t> as SocketMap;
     uses interface List<socket_store_t> as ServerList;
     uses interface List<pack> as CurrentMessages;
+    uses interface List<socket_store_t> as UsrList;
 }
+
 
 implementation {
     /* SECTION: Member Variables */
@@ -504,7 +506,7 @@ implementation {
 
         signal TCPHandler.route(&packet);
         call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
-        // sendDat(socket,paccket,PACKET_MAX_PAYLOAD_SIZE);
+        // sendDat(socket,packet,PACKET_MAX_PAYLOAD_SIZE);
 
     }
 
@@ -933,4 +935,19 @@ implementation {
 
         write(socketFD, &datPack);
     } 
+
+
+    //SECTION: project 4 implementation
+
+    command void TCPHandler.Broadcast(){
+
+    }
+
+    command void TCPHandler.Whisper(){
+
+    }
+
+    command void TCPHandler.PrintUsr(){
+
+    }
 }
