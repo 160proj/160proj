@@ -28,7 +28,7 @@ def main():
 
     s.runTime(5)
     
-    s.testClient(clientAddress=2, dest=9, srcPort=20, destPort=33, transfer=60)
+    s.testClient(clientAddress=2, dest=9, srcPort=20, destPort=33, transfer=12)
 
     s.runTime(10)
 

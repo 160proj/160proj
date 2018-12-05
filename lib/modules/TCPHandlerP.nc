@@ -393,20 +393,19 @@ implementation {
         }
 
         socket = call SocketMap.get(socketFD);
-        
-        for (i = socket.lastRead+1; !isRead(socketFD, i); i++) {
+        if (!socketFD) {
+
+        for (i = socket.lastRead+1; socket.lastRcvd; i++) {
             if (i >= SOCKET_BUFFER_SIZE) {
                 i = 0;
             }
             if (count > SOCKET_BUFFER_SIZE) {
                 break;
             }
-            // dbg(TRANSPORT_CHANNEL, "%hu\n", i);
-            if (!isRead(socketFD, i)) {
-                dbg(GENERAL_CHANNEL, "%d, \n", socket.rcvdBuff[i]);
-                socket.lastRead = i;
-            }
+            dbg(GENERAL_CHANNEL, "%d, \n", socket.rcvdBuff[i]);
+            socket.lastRead = i;
             count++;
+        }
         }
         updateSocket(socketFD, socket);
     }
@@ -471,9 +470,9 @@ implementation {
             for (i = 0; i < extra; i++) {
                 temp_buffer[extra+i] = socket.sendBuff[i];
             }
-            dbg(TRANSPORT_CHANNEL, "--\n");
+            // dbg(TRANSPORT_CHANNEL, "--\n");
         } else {
-            dbg(TRANSPORT_CHANNEL, "-\n");
+            // dbg(TRANSPORT_CHANNEL, "-\n");
             for (i = 0; i < TCP_PAYLOAD_SIZE; i++) {
                 temp_buffer[i] = socket.sendBuff[socket.lastSent+i];
             }
@@ -621,6 +620,7 @@ implementation {
         socket_store_t socket;
         tcp_header header;
         char dbg_string[20];
+        uint16_t i;
         
         // Retrieve TCP header from packet
         memcpy(&header, &(msg->payload), PACKET_MAX_PAYLOAD_SIZE);
@@ -671,19 +671,32 @@ implementation {
                     }
                     sendAck(socketFD, msg);
 
+                    
+
                     if (socket.lastRcvd >= SOCKET_BUFFER_SIZE) {
-                        memcpy(socket.rcvdBuff, &header.payload, header.payload_size);
+                        for (i = 0; i < header.payload_size; i++) {
+                            socket.rcvdBuff[i] = header.payload[i];
+                        }
                         socket.lastRcvd = header.payload_size;
                     }
                     else if (socket.lastRcvd + header.payload_size >= SOCKET_BUFFER_SIZE) {
                         uint16_t extra = socket.lastRcvd + header.payload_size - SOCKET_BUFFER_SIZE;
-                        memcpy(socket.rcvdBuff + socket.lastRcvd, &header.payload, header.payload_size - extra);
-                        memcpy(socket.rcvdBuff, &header.payload + (header.payload_size-extra), extra);
+                        for (i = 0; i < header.payload_size - extra; i++) {
+                            socket.rcvdBuff[socket.lastRcvd + i] = header.payload[i];
+                        }
+                        for (i = 0; i < extra; i++) {
+                            socket.rcvdBuff[i] = header.payload[header.payload_size-extra-i];
+                        }
                         socket.lastRcvd = extra;
                     } 
                     else {
-                        memcpy(socket.rcvdBuff+socket.lastRcvd, &header.payload, header.payload_size);
+                        for (i = 0; i < header.payload_size; i++) {
+                            socket.rcvdBuff[socket.lastRcvd+i] = header.payload[i];
+                        }
                         socket.lastRcvd += header.payload_size;
+                    }
+                    for (i = 0; i < header.payload_size; i++) {
+                        dbg(GENERAL_CHANNEL, "%hhu,\n", header.payload[i]);
                     }
 
                     updateSocket(socketFD, socket);
@@ -717,7 +730,12 @@ implementation {
                 else if (header.flag == SYN) {
                     sendAck(socketFD, msg);
                 }
-                else {
+                else if (header.flag == DAT) {
+                    updateState(socketFD, ESTABLISHED);
+                    call TCPHandler.recieve(msg);
+                    break;
+                }
+                else{
                     dbg(TRANSPORT_CHANNEL, "[Error] recieve: Invalid packet type for SYN_SENT state\n");
                 }
                 break;
@@ -728,6 +746,11 @@ implementation {
                     call PacketTimer.stop();
                     removeAck(header);
                     // TODO: Update RTT
+                }
+                else if (header.flag == DAT) {
+                    updateState(socketFD, ESTABLISHED);
+                    call TCPHandler.recieve(msg);
+                    break;
                 }
                 else {
                     dbg(TRANSPORT_CHANNEL, "[Error] recieve: Invalid packet type for SYN_RCVD state\n");
@@ -942,11 +965,13 @@ implementation {
         dat_header.advert_window = socket.effectiveWindow;
         dat_header.payload_size = size;
 
-        memcpy(&dat_header.payload, temp_buffer, size);
-
-        for(i = 0; i < size; i++) {
-            dbg(TRANSPORT_CHANNEL, "\t%hhu\n", temp_buffer[i]);
+        for (i = 0; i < size; i++) {
+            dat_header.payload[i] = temp_buffer[i];
         }
+
+        // for(i = 0; i < size; i++) {
+        //     dbg(TRANSPORT_CHANNEL, "\t%hhu\n", temp_buffer[i]);
+        // }
 
         memcpy(&datPack.payload, &dat_header, TCP_PAYLOAD_SIZE);
 
