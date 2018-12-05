@@ -12,7 +12,7 @@ module TCPHandlerP {
     uses interface Hashmap<socket_store_t> as SocketMap;
     uses interface List<socket_store_t> as ServerList;
     uses interface List<pack> as CurrentMessages;
-    uses interface List<socket_store_t> as UsrList;
+    
 }
 
 
@@ -937,17 +937,5 @@ implementation {
     } 
 
 
-    //SECTION: project 4 implementation
 
-    command void TCPHandler.Broadcast(){
-
-    }
-
-    command void TCPHandler.Whisper(){
-
-    }
-
-    command void TCPHandler.PrintUsr(){
-
-    }
 }
