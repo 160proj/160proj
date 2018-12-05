@@ -318,73 +318,63 @@ implementation {
      * Fills the send buffer with the bytes to send
      * Will resume filling if all bytes did not fit.
      *
-     * @param socketFD the file descriptor for the socket.
+     * @param The socket to fill.
      * @param transfer the number of bytes to send with values (0..transfer-1)
      *
      * @return the number of bytes of 'transfer' left to put into the buffer.
      */
-    uint8_t fill(socket_t socketFD, uint32_t transfer) {
-        socket_store_t socket;
+    uint8_t fill(socket_store_t* socket, uint32_t transfer) {
         uint32_t i;
-        uint16_t count;
+        uint8_t count;
 
-        if (!socketFD) {
-            dbg(TRANSPORT_CHANNEL, "[Error] fill: Invalid file descriptor\n");
-            return 0;
-        }
-
-        socket = call SocketMap.get(socketFD);
-
-        if (socket.lastWritten >= SOCKET_BUFFER_SIZE) {
-            socket.lastWritten = 0;
-            updateSocket(socketFD, socket);
+        if (socket->lastWritten >= SOCKET_BUFFER_SIZE) {
+            socket->lastWritten = 0;
         }
 
         if (transfer == 0) {
-            if(socket.flag == 0) {
+            if(socket->flag == 0) {
                 return 0;
             }
 
-            transfer = socket.sendBuff[socket.lastWritten] + socket.flag;
-            count = socket.sendBuff[socket.lastWritten];
+            transfer = socket->sendBuff[socket->lastWritten] + socket->flag;
+            count = socket->sendBuff[socket->lastWritten];
         } else {
-            socket.flag = transfer;
+            socket->flag = transfer;
             count = 0;
         }
 
-        for (i = 0; i < socket.flag; i++) {
-            uint8_t offset = socket.lastWritten+1;
+        for (i = 0; i < socket->flag; i++) {
+            uint8_t offset = socket->lastWritten+1;
 
             if (offset == SOCKET_BUFFER_SIZE) {
                 offset = 0;
             }
 
 
-            if (socket.lastWritten + 1 < SOCKET_BUFFER_SIZE) {
-                if (socket.lastWritten + 1 != socket.lastSent) {
-                    memset(socket.sendBuff+offset, count, 1);
-                    socket.lastWritten++;
+            if (socket->lastWritten + 1 < SOCKET_BUFFER_SIZE) {
+                if (socket->lastWritten + 1 != socket->lastSent) {
+                    socket->sendBuff[offset] = count;
+                    socket->lastWritten++;
                     count++;
-                    updateSocket(socketFD, socket);
-                } else {
-                    socket.flag -= count;
-                    updateSocket(socketFD, socket);
-                    return socket.flag;
                 }
-            } else if (0 != socket.lastSent) {
-                memset(socket.sendBuff+offset, count, 1);
-                socket.lastWritten++;
+                else {
+                    socket->flag -= count;
+                    return socket->flag;
+                }
+            }
+            else if (0 != socket->lastSent) {
+                socket->sendBuff[offset] = count;
+                socket->lastWritten++;
                 count++;
-                updateSocket(socketFD, socket);
-            } else {
-                socket.flag -= count;
-                updateSocket(socketFD, socket);
-                return socket.flag;
+            }
+            else {
+                socket->flag -= count;
+                return socket->flag;
             }
         }
 
         for (i = 0; i < SOCKET_BUFFER_SIZE; i++) {
-            dbg(TRANSPORT_CHANNEL, "Item %hhu: %hhu\n", i, socket.sendBuff[i]);
+            dbg(TRANSPORT_CHANNEL, "Item %hhu: %hhu\n", i, socket->sendBuff[i]);
         }
 
         return 0;
@@ -465,12 +455,32 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
         
+        // if (socket.lastSent + TCP_PAYLOAD_SIZE >= SOCKET_BUFFER_SIZE) {
+        //     uint32_t extra = TCP_PAYLOAD_SIZE + socket.lastSent - SOCKET_BUFFER_SIZE;
+        //     memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE-extra);
+        //     memcpy(temp_buffer + extra, socket.sendBuff, extra);
+        // } else {
+        //     memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE);
+        // }
+
         if (socket.lastSent + TCP_PAYLOAD_SIZE >= SOCKET_BUFFER_SIZE) {
             uint32_t extra = TCP_PAYLOAD_SIZE + socket.lastSent - SOCKET_BUFFER_SIZE;
-            memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE-extra);
-            memcpy(temp_buffer + extra, socket.sendBuff, extra);
+            for (i = 0; i < TCP_PAYLOAD_SIZE - extra; i++) {
+                temp_buffer[i] = socket.sendBuff[socket.lastSent+i];
+            }
+            for (i = 0; i < extra; i++) {
+                temp_buffer[extra+i] = socket.sendBuff[i];
+            }
         } else {
-            memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE);
+
+            for (i = 0; i < TCP_PAYLOAD_SIZE; i++) {
+                temp_buffer[i] = socket.sendBuff[socket.lastSent+i];
+            }
+        }
+
+        dbg(TRANSPORT_CHANNEL, "Tempbuff:\n");
+        for (i = 0; i < TCP_PAYLOAD_SIZE; i++) {
+            dbg(TRANSPORT_CHANNEL, "%hhu\n", temp_buffer[i]);
         }
 
         dbg(TRANSPORT_CHANNEL, "Sendbuff:\n");
@@ -551,6 +561,7 @@ implementation {
                                         uint16_t destPort, uint16_t transfer) {
         socket_store_t socket;
         socket_t socketFD;
+        uint16_t i;
 
         socket.src = srcPort;
         socket.dest.port = destPort;
@@ -566,8 +577,9 @@ implementation {
         socket.nextExpected = 0;
         memset(socket.sendBuff, '\0', SOCKET_BUFFER_SIZE);
 
+        fill(&socket, transfer);
         socketFD = addSocket(socket);
-        fill(socketFD, transfer);
+
         updateSocket(socketFD, socket);
         sendSyn(socketFD);
 
@@ -680,7 +692,7 @@ implementation {
                     call PacketTimer.stop();
                     removeAck(header);
                     // TODO: Update RTT
-                    fill(socketFD, 0);
+                    fill(&socket, 0);
                     socket.nextExpected = header.seq+1;
                     updateSocket(socketFD, socket);
                     sendNextData(socketFD);
