@@ -11,17 +11,15 @@ module TCPHandlerP {
     uses interface Timer<TMilli> as PacketTimer;
     uses interface Hashmap<socket_store_t> as SocketMap;
     uses interface List<socket_store_t> as ServerList;
-    uses interface List<pack> as CurrentMessages;
-    
+    uses interface List<pack> as CurrentMessages;    
 }
-
 
 implementation {
     /* SECTION: Member Variables */
 
     socket_t next_fd = 1; /** Next open file descriptor to bind a socket to */
     uint16_t* node_seq; /** Pointer to node's sequence number */
-    const uint16_t default_rtt = 1500; /** The default RTT for the sockets */
+    const uint16_t default_rtt = 1000; /** The default RTT for the sockets */
     uint8_t temp_buffer[TCP_PAYLOAD_SIZE]; /** Temporary buffer for storing message data */
 
     /* SECTION: Prototypes */
@@ -426,36 +424,6 @@ implementation {
         updateSocket(socketFD, socket);
     }
 
-    // /**
-    //  * Sends the next packet in the CurrentMessages.
-    //  */
-    // void sendNext() {
-    //     pack packet;
-    //     tcp_header header;
-    //     socket_store_t socket;
-    //     socket_t socketFD;
-    //     uint16_t i;
-
-    //     if (!call CurrentMessages.isEmpty()) {
-    //         return;
-    //     }
-
-    //     packet = call CurrentMessages.front();
-    //     memcpy(&header, &packet.payload, PACKET_MAX_PAYLOAD_SIZE);
-
-    //     socketFD = getFD(packet.dest, header.src_port, header.dest_port);
-
-    //     if (!socketFD) {
-    //         dbg(TRANSPORT_CHANNEL, "[Error] sendNext: Invalid file descriptor\n");
-    //         return;
-    //     }
-
-    //     socket = call SocketMap.get(socketFD);
-
-    //     signal TCPHandler.route(&packet);
-    //     call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
-    // }
-
     /**
      * Sends the next packet for the socket.
      *
@@ -500,8 +468,15 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
         
-        memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE);
+        if (socket.lastSent + TCP_PAYLOAD_SIZE >= SOCKET_BUFFER_SIZE) {
+            uint32_t extra = TCP_PAYLOAD_SIZE + socket.lastSent - SOCKET_BUFFER_SIZE;
+            memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE-extra);
+            memcpy(temp_buffer + extra, socket.sendBuff, extra);
+        } else {
+            memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE);
+        }
 
+        dbg(TRANSPORT_CHANNEL, "Sendbuff:\n");
         for (i = 0; i < SOCKET_BUFFER_SIZE; i++) {
             dbg(TRANSPORT_CHANNEL, "%hhu\n", socket.sendBuff[i]);
         }
@@ -553,14 +528,15 @@ implementation {
         socket.state = LISTEN;
         socket.dest.addr = ROOT_SOCKET_ADDR;
         socket.dest.port = ROOT_SOCKET_PORT;
+        socket.lastWritten = SOCKET_BUFFER_SIZE;
+        socket.lastAck = SOCKET_BUFFER_SIZE;
+        socket.lastSent = SOCKET_BUFFER_SIZE;
         socket.effectiveWindow = 1;
         socket.flag = 0;
         socket.RTT = default_rtt;
 
         call ServerList.pushbackdrop(socket);
         dbg(TRANSPORT_CHANNEL, "Server started on Port %hhu\n", port);
-        // TODO: Figure out what the pdf means starting with the 'startTimer' line
-        // fired() function that takes in 3 seconds and it 
     }
 
     /**
@@ -587,6 +563,7 @@ implementation {
         socket.effectiveWindow = 1;
         socket.RTT = default_rtt;
         socket.flag = 0;
+        socket.nextExpected = 0;
         memset(socket.sendBuff, '\0', SOCKET_BUFFER_SIZE);
 
         socketFD = addSocket(socket);
@@ -615,8 +592,6 @@ implementation {
 
         sendFin(socketFD);
         updateState(socketFD, CLOSED);
-        // Wait for the ack before removing
-        // call SocketMap.remove(fd);
     }
 
     /**
@@ -683,13 +658,22 @@ implementation {
                         break;
                     }
                     sendAck(socketFD, msg);
-                    memcpy(&socket.rcvdBuff+socket.lastRead+1, &header.payload, header.payload_size);
-                    socket.lastRcvd = socket.lastRead + header.payload_size;
-                    if (socket.lastRead + header.payload_size >= SOCKET_BUFFER_SIZE) {
-                        socket.lastRcvd = socket.lastRead+header.payload_size - SOCKET_BUFFER_SIZE;
-                        memcpy(socket.rcvdBuff, socket.rcvdBuff+SOCKET_BUFFER_SIZE, socket.lastRcvd);
+
+                    if (socket.lastRcvd >= SOCKET_BUFFER_SIZE) {
+                        memcpy(socket.rcvdBuff, &header.payload, header.payload_size);
+                        socket.lastRcvd = header.payload_size;
                     }
-                    // FIXME: Fix the wraparound issue
+                    else if (socket.lastRcvd + header.payload_size >= SOCKET_BUFFER_SIZE) {
+                        uint16_t extra = socket.lastRcvd + header.payload_size - SOCKET_BUFFER_SIZE;
+                        memcpy(socket.rcvdBuff+socket.lastRcvd, &header.payload, header.payload_size-extra);
+                        memcpy(socket.rcvdBuff, &header.payload + (header.payload_size-extra), extra);
+                        socket.lastRcvd = extra;
+                    } 
+                    else {
+                        memcpy(socket.rcvdBuff+socket.lastRcvd, &header.payload, header.payload_size);
+                        socket.lastRcvd += header.payload_size;
+                    }
+
                     updateSocket(socketFD, socket);
                     printUnread(socketFD);
                 }
@@ -699,6 +683,7 @@ implementation {
                     // TODO: Update RTT
                     fill(socketFD, 0);
                     socket.nextExpected = header.seq+1;
+                    updateSocket(socketFD, socket);
                     sendNextData(socketFD);
                 }
                 else if (header.flag == FIN) {
@@ -953,7 +938,4 @@ implementation {
 
         write(socketFD, &datPack);
     } 
-
-
-
 }
