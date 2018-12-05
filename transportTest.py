@@ -11,7 +11,7 @@ def main():
     s.loadTopo("example.topo")
 
     # Add a noise model to all of the motes.
-    s.loadNoise("no_noise.txt")
+    s.loadNoise("meyer-heavy.txt")
 
     # Turn on all of the sensors.
     s.bootAll()
@@ -28,7 +28,7 @@ def main():
 
     s.runTime(5)
     
-    s.testClient(clientAddress=2, dest=9, srcPort=20, destPort=33, transfer=60)
+    s.testClient(clientAddress=2, dest=9, srcPort=20, destPort=33, transfer=12)
 
     s.runTime(10)
 

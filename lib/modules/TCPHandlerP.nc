@@ -310,11 +310,8 @@ implementation {
             return;
         }
         
-        socket = call SocketMap.get(socketFD);
         call CurrentMessages.pushfrontdrop(*msg);
         sendNextFromSocket(socketFD);             
-
-        updateSocket(socketFD, socket);
     }
 
     /**
@@ -477,10 +474,11 @@ implementation {
         }
 
         dbg(TRANSPORT_CHANNEL, "Sendbuff:\n");
-        for (i = 0; i < SOCKET_BUFFER_SIZE; i++) {
-            dbg(TRANSPORT_CHANNEL, "%hhu\n", socket.sendBuff[i]);
+        for (i = 0; i < SOCKET_BUFFER_SIZE; i+= 8) {
+            dbg(TRANSPORT_CHANNEL, "%hhu, %hhu, %hhu, %hhu, %hhu, %hhu, %hhu, %hhu\n", 
+                socket.sendBuff[i], socket.sendBuff[i+1], socket.sendBuff[i+2], socket.sendBuff[i+3],
+                socket.sendBuff[i+4], socket.sendBuff[i+5], socket.sendBuff[i+6], socket.sendBuff[i+7]);
         }
-        dbg(TRANSPORT_CHANNEL, "----------%hhu\n", *(socket.sendBuff+socket.lastSent));
 
         sendDat(socketFD, temp_buffer, TCP_PAYLOAD_SIZE);
         call PacketTimer.startOneShot(call PacketTimer.getNow() + 2*socket.RTT);
@@ -531,6 +529,7 @@ implementation {
         socket.lastWritten = SOCKET_BUFFER_SIZE;
         socket.lastAck = SOCKET_BUFFER_SIZE;
         socket.lastSent = SOCKET_BUFFER_SIZE;
+        socket.lastRcvd = SOCKET_BUFFER_SIZE;
         socket.effectiveWindow = 1;
         socket.flag = 0;
         socket.RTT = default_rtt;
@@ -560,6 +559,7 @@ implementation {
         socket.lastWritten = SOCKET_BUFFER_SIZE;
         socket.lastAck = SOCKET_BUFFER_SIZE;
         socket.lastSent = SOCKET_BUFFER_SIZE;
+        socket.lastRcvd = SOCKET_BUFFER_SIZE;
         socket.effectiveWindow = 1;
         socket.RTT = default_rtt;
         socket.flag = 0;
@@ -608,7 +608,6 @@ implementation {
         socket_store_t socket;
         tcp_header header;
         char dbg_string[20];
-        // memcpy(socket.rcvdBuff, &msg, 128) FIXME: make the message go into buffer for recieving things 
         
         // Retrieve TCP header from packet
         memcpy(&header, &(msg->payload), PACKET_MAX_PAYLOAD_SIZE);
@@ -665,7 +664,7 @@ implementation {
                     }
                     else if (socket.lastRcvd + header.payload_size >= SOCKET_BUFFER_SIZE) {
                         uint16_t extra = socket.lastRcvd + header.payload_size - SOCKET_BUFFER_SIZE;
-                        memcpy(socket.rcvdBuff+socket.lastRcvd, &header.payload, header.payload_size-extra);
+                        memcpy(socket.rcvdBuff + socket.lastRcvd, &header.payload, header.payload_size - extra);
                         memcpy(socket.rcvdBuff, &header.payload + (header.payload_size-extra), extra);
                         socket.lastRcvd = extra;
                     } 
@@ -753,6 +752,8 @@ implementation {
             dbg(TRANSPORT_CHANNEL, "[Error] PacketTimer.fired: Invalid file descriptor\n");
             return;
         }
+
+        dbg(TRANSPORT_CHANNEL, "Packet timed out... retransmitting\n");
 
         socket = call SocketMap.get(socketFD);
 
