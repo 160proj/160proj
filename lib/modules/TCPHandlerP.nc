@@ -455,13 +455,10 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
         
-        // if (socket.lastSent + TCP_PAYLOAD_SIZE >= SOCKET_BUFFER_SIZE) {
-        //     uint32_t extra = TCP_PAYLOAD_SIZE + socket.lastSent - SOCKET_BUFFER_SIZE;
-        //     memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE-extra);
-        //     memcpy(temp_buffer + extra, socket.sendBuff, extra);
-        // } else {
-        //     memcpy(temp_buffer, socket.sendBuff+socket.lastSent, TCP_PAYLOAD_SIZE);
-        // }
+
+        if (socket.lastSent == SOCKET_BUFFER_SIZE) {
+            socket.lastSent = 1;
+        }
 
         if (socket.lastSent + TCP_PAYLOAD_SIZE >= SOCKET_BUFFER_SIZE) {
             uint32_t extra = TCP_PAYLOAD_SIZE + socket.lastSent - SOCKET_BUFFER_SIZE;
@@ -471,8 +468,9 @@ implementation {
             for (i = 0; i < extra; i++) {
                 temp_buffer[extra+i] = socket.sendBuff[i];
             }
+            dbg(TRANSPORT_CHANNEL, "--\n");
         } else {
-
+            dbg(TRANSPORT_CHANNEL, "-\n");
             for (i = 0; i < TCP_PAYLOAD_SIZE; i++) {
                 temp_buffer[i] = socket.sendBuff[socket.lastSent+i];
             }
