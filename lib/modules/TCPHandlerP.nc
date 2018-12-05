@@ -326,13 +326,12 @@ implementation {
      * @param socketFD the file descriptor for the socket.
      * @param transfer the number of bytes to send with values (0..transfer-1)
      *
-     * @return the number of bytes of 'transfer' were able to fit into the buffer.
+     * @return the number of bytes of 'transfer' left to put into the buffer.
      */
-    uint32_t fill(socket_t socketFD, uint32_t transfer) {
+    uint8_t fill(socket_t socketFD, uint32_t transfer) {
         socket_store_t socket;
-        uint8_t start;
-        uint8_t end;
         uint32_t i;
+        uint16_t count;
 
         if (!socketFD) {
             dbg(TRANSPORT_CHANNEL, "[Error] fill: Invalid file descriptor\n");
@@ -341,44 +340,56 @@ implementation {
 
         socket = call SocketMap.get(socketFD);
 
-        start = socket.lastSent + 1;
-        end = socket.lastAck - 1;
+        if (socket.lastWritten >= SOCKET_BUFFER_SIZE) {
+            socket.lastWritten = 0;
+            updateSocket(socketFD, socket);
+        }
+
         if (transfer == 0) {
-            transfer = socket.flag + socket.sendBuff[start-1];
-        }
-        // Bound the start value
-        if (start >= SOCKET_BUFFER_SIZE) {
-            start = 0;
-        }
-
-        // Bound the end value
-        if (end >= SOCKET_BUFFER_SIZE) {
-            end = SOCKET_BUFFER_SIZE;
-        }
-
-        for (i = 0; i < transfer - socket.flag; i++) {
-            uint8_t offset = start+i;
-
-
-            // Make sure the offset wraps around
-            if (start+i >= SOCKET_BUFFER_SIZE) {
-                offset -= SOCKET_BUFFER_SIZE;
+            if(socket.flag == 0) {
+                return 0;
             }
-            
-            // Stop copying when buffer is full
-            if (offset != end) {
-                memcpy(socket.sendBuff + start + i,  &i, 1);
-                socket.lastWritten = offset;
+
+            transfer = socket.sendBuff[socket.lastWritten] + socket.flag;
+            count = socket.sendBuff[socket.lastWritten];
+        } else {
+            socket.flag = transfer;
+            count = 0;
+        }
+
+        for (i = 0; i < socket.flag; i++) {
+            uint8_t offset = socket.lastWritten+1;
+
+            if (offset == SOCKET_BUFFER_SIZE) {
+                offset = 0;
+            }
+
+
+            if (socket.lastWritten + 1 < SOCKET_BUFFER_SIZE) {
+                if (socket.lastWritten + 1 != socket.lastSent) {
+                    memset(socket.sendBuff+offset, count, 1);
+                    socket.lastWritten++;
+                    count++;
+                    updateSocket(socketFD, socket);
+                } else {
+                    socket.flag -= count;
+                    updateSocket(socketFD, socket);
+                    return socket.flag;
+                }
+            } else if (0 != socket.lastSent) {
+                memset(socket.sendBuff+offset, count, 1);
+                socket.lastWritten++;
+                count++;
                 updateSocket(socketFD, socket);
             } else {
-                if (socket.flag - i > 0) {
-                    socket.flag -= i;
-                } else {
-                    socket.flag = 0;
-                }
+                socket.flag -= count;
                 updateSocket(socketFD, socket);
-                return i;
+                return socket.flag;
             }
+        }
+
+        for (i = 0; i < SOCKET_BUFFER_SIZE; i++) {
+            dbg(TRANSPORT_CHANNEL, "Item %hhu: %hhu\n", i, socket.sendBuff[i]);
         }
 
         return 0;
@@ -575,10 +586,11 @@ implementation {
         socket.lastSent = SOCKET_BUFFER_SIZE;
         socket.effectiveWindow = 1;
         socket.RTT = default_rtt;
+        socket.flag = 0;
         memset(socket.sendBuff, '\0', SOCKET_BUFFER_SIZE);
 
         socketFD = addSocket(socket);
-        socket.flag = fill(socketFD, transfer);
+        fill(socketFD, transfer);
         updateSocket(socketFD, socket);
         sendSyn(socketFD);
 
